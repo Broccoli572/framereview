@@ -1,0 +1,137 @@
+# FrameReview V2 — Docker 开发/部署环境
+# 使用方式: cp .env.example .env && docker-compose up -d
+
+services:
+  # ── 应用层 ────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: framereview-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+      - ./storage:/var/www/storage
+      - nas-media:/nas/media   # 挂载 NAS 媒体目录
+    environment:
+      - PHP_MEMORY_LIMIT=256M
+      - PHP_UPLOAD_MAX_FILESIZE=10G
+      - PHP_POST_MAX_SIZE=10G
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - framereview
+
+  # ── Web 服务器 ─────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: framereview-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www
+      - ./storage:/var/www/storage
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - nas-media:/nas/media
+    depends_on:
+      - app
+    networks:
+      - framereview
+
+  # ── 数据库 ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: framereview-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: framereview
+      POSTGRES_USER: framereview
+      POSTGRES_PASSWORD: changeme
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - framereview
+
+  # ── 缓存 / 队列 ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: framereview-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - framereview
+
+  # ── 对象存储（开发用，生产可对接真实 MinIO / NAS SMB）───
+  minio:
+    image: minio/minio:latest
+    container_name: framereview-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: framereview
+      MINIO_ROOT_PASSWORD: changeme
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console
+    networks:
+      - framereview
+
+  # ── 媒体处理 Worker ─────────────────────────────────────
+  media-worker:
+    build:
+      context: ./media-worker
+      dockerfile: Dockerfile
+    container_name: framereview-media-worker
+    restart: unless-stopped
+    volumes:
+      - .:/var/www
+      - nas-media:/nas/media
+    depends_on:
+      - redis
+      - postgres
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgres://framereview:changeme@postgres:5432/framereview
+    networks:
+      - framereview
+    command: ["node", "src/index.js"]
+
+  # ── 队列监控（可选，生产推荐启用）───────────────────────
+  horizon:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: framereview-horizon
+    restart: unless-stopped
+    command: php artisan horizon
+    volumes:
+      - .:/var/www
+      - ./storage:/var/www/storage
+    depends_on:
+      - app
+      - postgres
+      - redis
+    networks:
+      - framereview
+
+networks:
+  framereview:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  nas-media:

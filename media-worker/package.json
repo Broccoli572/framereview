@@ -1,0 +1,21 @@
+{
+  "name": "framereview-media-worker",
+  "version": "1.0.0",
+  "description": "FrameReview V2 — 媒体处理 Worker（ffprobe / ffmpeg 任务消费）",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "bullmq": "^5.1.0",
+    "dotenv": "^16.4.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "ioredis": "^5.3.0",
+    "kleur": "^4.1.0",
+    "pg": "^8.11.0",
+    "zod": "^3.22.0"
+  }
+}

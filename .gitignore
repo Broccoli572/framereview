@@ -1,0 +1,36 @@
+# 依赖
+/node_modules
+/vendor
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 构建产物
+/public/hot
+/public/storage
+/storage/*.key
+/dist
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 媒体文件（不提交原始文件）
+storage/media/*
+!storage/media/.gitkeep
+
+# 日志
+*.log
+npm-debug.log*
+
+# Docker 体积优化：不上传这些
+docker-compose.override.yml
+.docker/
