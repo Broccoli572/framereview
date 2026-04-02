@@ -38,4 +38,28 @@ class Folder extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    /**
+     * 递归获取所有后代文件夹
+     */
+    public function allDescendants(): HasMany
+    {
+        return $this->children()->with('allDescendants');
+    }
+
+    /**
+     * 获取完整面包屑路径（从根到当前）
+     */
+    public function breadcrumbs(): array
+    {
+        $path = [$this];
+        $current = $this;
+
+        while ($current->parent) {
+            $current = $current->parent;
+            array_unshift($path, $current);
+        }
+
+        return $path;
+    }
 }
