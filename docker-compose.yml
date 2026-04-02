@@ -1,10 +1,9 @@
 # FrameReview V2 — Docker 开发/部署环境
-# 使用方式: cp .env.example .env && docker-compose up -d
+# 使用方式: Container Station UI 导入，或 docker-compose up -d
 #
 # ⚠️  绿联 NAS 部署注意：
-#  1. 确保 Docker 镜像源已配置（见项目根目录 DEPLOY_NAS.md）
-#  2. 如遇 403 拉取失败，执行：sudo mkdir -p /etc/docker && echo '{"registry-mirrors":["https://docker.m.daocloud.io"]}' | sudo tee /etc/docker/daemon.json && sudo systemctl restart docker
-#  3. 将下方 nas-media 的挂载路径改为实际的 NAS 媒体目录
+#  1. 媒体目录挂载：已配置 /volume1/影像数据归档/.../1KM
+#  2. 如遇镜像拉取超时，yml 内已使用中科大镜像源
 
 services:
   # ── 应用层 ────────────────────────────────────────────
@@ -31,7 +30,7 @@ services:
 
   # ── Web 服务器 ─────────────────────────────────────────
   nginx:
-    image: nginx:1.27-alpine
+    image: docker.mirrors.ustc.edu.cn/library/nginx:1.26-alpine   # 中科大镜像
     container_name: framereview-nginx
     restart: unless-stopped
     ports:
@@ -48,7 +47,7 @@ services:
 
   # ── 数据库 ─────────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: docker.mirrors.ustc.edu.cn/library/postgres:16-alpine   # 中科大镜像
     container_name: framereview-postgres
     restart: unless-stopped
     environment:
@@ -64,7 +63,7 @@ services:
 
   # ── 缓存 / 队列 ─────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: docker.mirrors.ustc.edu.cn/library/redis:7-alpine   # 中科大镜像
     container_name: framereview-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -77,7 +76,7 @@ services:
 
   # ── 对象存储（开发用，生产可对接真实 MinIO / NAS SMB）───
   minio:
-    image: minio/minio:latest
+    image: docker.mirrors.ustc.edu.cn/library/minio/minio:latest   # 中科大镜像
     container_name: framereview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -115,7 +114,7 @@ services:
 
   # ── 全文搜索引擎 ─────────────────────────────────────────
   meilisearch:
-    image: getmeili/meilisearch:v1.6
+    image: docker.mirrors.ustc.edu.cn/library/getmeili/meilisearch:v1.6   # 中科大镜像
     container_name: framereview-meilisearch
     restart: unless-stopped
     environment:
