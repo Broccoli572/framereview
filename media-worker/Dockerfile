@@ -1,4 +1,4 @@
-FROM docker.mirrors.ustc.edu.cn/library/node:22-alpine
+FROM registry.cn-hangzhou.aliyuncs.com/library/node:22-alpine
 
 RUN apk add --no-cache ffmpeg
 

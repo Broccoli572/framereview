@@ -3,7 +3,7 @@
 #
 # ⚠️  绿联 NAS 部署注意：
 #  1. 媒体目录挂载：已配置 /volume1/影像数据归档/.../1KM
-#  2. 如遇镜像拉取超时，yml 内已使用中科大镜像源
+#  2. 镜像源：阿里云杭州节点（国内可访问）
 
 services:
   # ── 应用层 ────────────────────────────────────────────
@@ -17,7 +17,7 @@ services:
     volumes:
       - .:/var/www
       - ./storage:/var/www/storage
-      - /volume1/影像数据归档/小白Team内部影像数据/阅流视频存档/1KM:/nas/media   # 绿联 NAS 媒体目录
+      - /volume1/影像数据归档/小白Team内部影像数据/阅流视频存档/1KM:/nas/media
     environment:
       - PHP_MEMORY_LIMIT=256M
       - PHP_UPLOAD_MAX_FILESIZE=10G
@@ -30,7 +30,7 @@ services:
 
   # ── Web 服务器 ─────────────────────────────────────────
   nginx:
-    image: docker.mirrors.ustc.edu.cn/library/nginx:1.26-alpine   # 中科大镜像
+    image: registry.cn-hangzhou.aliyuncs.com/library/nginx:1.26-alpine
     container_name: framereview-nginx
     restart: unless-stopped
     ports:
@@ -47,7 +47,7 @@ services:
 
   # ── 数据库 ─────────────────────────────────────────────
   postgres:
-    image: docker.mirrors.ustc.edu.cn/library/postgres:16-alpine   # 中科大镜像
+    image: registry.cn-hangzhou.aliyuncs.com/library/postgres:16-alpine
     container_name: framereview-postgres
     restart: unless-stopped
     environment:
@@ -63,7 +63,7 @@ services:
 
   # ── 缓存 / 队列 ─────────────────────────────────────────
   redis:
-    image: docker.mirrors.ustc.edu.cn/library/redis:7-alpine   # 中科大镜像
+    image: registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
     container_name: framereview-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -76,7 +76,7 @@ services:
 
   # ── 对象存储（开发用，生产可对接真实 MinIO / NAS SMB）───
   minio:
-    image: docker.mirrors.ustc.edu.cn/library/minio/minio:latest   # 中科大镜像
+    image: registry.cn-hangzhou.aliyuncs.com/library/minio/minio:latest
     container_name: framereview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -86,8 +86,8 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Console
+      - "9000:9000"
+      - "9001:9001"
     networks:
       - framereview
 
@@ -114,7 +114,7 @@ services:
 
   # ── 全文搜索引擎 ─────────────────────────────────────────
   meilisearch:
-    image: docker.mirrors.ustc.edu.cn/library/getmeili/meilisearch:v1.6   # 中科大镜像
+    image: registry.cn-hangzhou.aliyuncs.com/library/getmeili/meilisearch:v1.6
     container_name: framereview-meilisearch
     restart: unless-stopped
     environment:
