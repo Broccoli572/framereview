@@ -63,10 +63,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('assets/{asset}/versions', [Api\AssetVersionController::class, 'store']);
     Route::get('assets/{asset}/versions', [Api\AssetVersionController::class, 'index']);
 
+    // 审片 Threads
+    Route::get('assets/{assetId}/versions/{versionId}/threads', [Api\ReviewThreadController::class, 'index']);
+    Route::post('assets/{assetId}/versions/{versionId}/threads', [Api\ReviewThreadController::class, 'store']);
+    Route::get('assets/{assetId}/versions/{versionId}/threads/in-range', [Api\ReviewThreadController::class, 'inRange']);
+    Route::get('threads/{threadId}', [Api\ReviewThreadController::class, 'show']);
+    Route::patch('threads/{threadId}', [Api\ReviewThreadController::class, 'update']);
+    Route::delete('threads/{threadId}', [Api\ReviewThreadController::class, 'destroy']);
+
     // 审片评论
-    Route::apiResource('assets.threads', Api\ReviewThreadController::class);
-    Route::post('threads/{thread}/comments', [Api\ReviewCommentController::class, 'store']);
-    Route::patch('comments/{comment}/resolve', [Api\ReviewCommentController::class, 'resolve']);
+    Route::post('threads/{threadId}/comments', [Api\ReviewCommentController::class, 'store']);
+    Route::delete('comments/{commentId}', [Api\ReviewCommentController::class, 'destroy']);
+    Route::patch('comments/{commentId}/resolve', [Api\ReviewCommentController::class, 'resolve']);
 
     // 分享
     Route::apiResource('assets.shares', Api\ShareController::class)->only(['store', 'index', 'destroy']);
@@ -74,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // 动态与通知
     Route::get('notifications', [Api\NotificationController::class, 'index']);
+    Route::get('notifications/unread-count', [Api\NotificationController::class, 'unreadCount']);
     Route::patch('notifications/{notification}/read', [Api\NotificationController::class, 'markRead']);
     Route::patch('notifications/read-all', [Api\NotificationController::class, 'markAllRead']);
 
