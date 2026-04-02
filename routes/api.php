@@ -42,6 +42,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('projects.folders', Api\FolderController::class);
     Route::get('folders/{folder}/tree', [Api\FolderController::class, 'tree']);
 
+    // 资产上传
+    Route::post('assets/upload/initiate', [Api\AssetUploadController::class, 'initiate'])
+        ->name('assets.upload.initiate');
+    Route::post('assets/upload/finalize/{assetId}', [Api\AssetUploadController::class, 'finalize'])
+        ->name('assets.upload.finalize');
+    Route::post('assets/upload', [Api\AssetUploadController::class, 'upload'])
+        ->name('assets.upload');
+    Route::get('assets/upload/{assetId}/status', [Api\AssetUploadController::class, 'status'])
+        ->name('assets.upload.status');
+    Route::delete('assets/upload/{assetId}', [Api\AssetUploadController::class, 'cancel'])
+        ->name('assets.upload.cancel');
+
     // 资产
     Route::apiResource('folders.assets', Api\AssetController::class);
     Route::post('assets/{asset}/process', [Api\AssetController::class, 'triggerProcessing']);

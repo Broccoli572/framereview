@@ -36,4 +36,28 @@ class Project extends Model
     {
         return $this->folders()->whereNull('parent_id');
     }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
+
+    /**
+     * 项目资产统计（关联数、总大小、最新资产）
+     */
+    public function stats(): array
+    {
+        $assets = $this->assets();
+
+        return [
+            'asset_count'  => $assets->count(),
+            'total_bytes'  => $assets->sum('size_bytes'),
+            'latest_asset' => $assets->latest()->first()?->only(['id', 'name', 'type', 'updated_at']),
+        ];
+    }
+
+    public function latestAsset()
+    {
+        return $this->hasOne(Asset::class)->latestOfMany();
+    }
 }
