@@ -1,4 +1,10 @@
-FROM registry.cn-hangzhou.aliyuncs.com/library/php:8.4-fpm-alpine
+# FrameReview V2 — PHP App Dockerfile
+# 针对国内网络优化：阿里云 apk 源 + Composer 国内源
+
+FROM php:8.4-fpm-alpine
+
+# 换 Alpine 国内源（阿里云）
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # 安装系统依赖
 RUN apk add --no-cache \
@@ -15,11 +21,11 @@ RUN apk add --no-cache \
 # 安装 PHP 扩展
 RUN docker-php-ext-install pdo pdo_pgsql bcmath exif pcntl gd
 
-# 安装 Redis 扩展
-RUN pecl install redis && docker-php-ext-enable redis
+# 安装 Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# 安装 Composer（阿里云镜像）
-COPY --from=registry.cn-hangzhou.aliyuncs.com/library/composer:2 /usr/bin/composer /usr/bin/composer
+# Composer 国内源
+RUN composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/
 
 # 时区
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime

@@ -4,6 +4,7 @@
 # ⚠️  绿联 NAS 部署注意：
 #  1. 媒体目录挂载：已配置 /volume1/影像数据归档/.../1KM
 #  2. 镜像源：阿里云杭州节点（国内可访问）
+#  3. dns 配置在 build 参数里，解决 NAS Docker DNS 问题
 
 services:
   # ── 应用层 ────────────────────────────────────────────
@@ -11,6 +12,10 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      network: host
+      dns:
+        - 223.5.5.5
+        - 114.114.114.114
     container_name: framereview-app
     restart: unless-stopped
     working_dir: /var/www
@@ -30,7 +35,7 @@ services:
 
   # ── Web 服务器 ─────────────────────────────────────────
   nginx:
-    image: registry.cn-hangzhou.aliyuncs.com/library/nginx:1.26-alpine
+    image: nginx:1.26-alpine
     container_name: framereview-nginx
     restart: unless-stopped
     ports:
@@ -47,7 +52,7 @@ services:
 
   # ── 数据库 ─────────────────────────────────────────────
   postgres:
-    image: registry.cn-hangzhou.aliyuncs.com/library/postgres:16-alpine
+    image: postgres:16-alpine
     container_name: framereview-postgres
     restart: unless-stopped
     environment:
@@ -63,7 +68,7 @@ services:
 
   # ── 缓存 / 队列 ─────────────────────────────────────────
   redis:
-    image: registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
+    image: redis:7-alpine
     container_name: framereview-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -76,7 +81,7 @@ services:
 
   # ── 对象存储（开发用，生产可对接真实 MinIO / NAS SMB）───
   minio:
-    image: registry.cn-hangzhou.aliyuncs.com/library/minio/minio:latest
+    image: minio/minio:latest
     container_name: framereview-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -96,6 +101,10 @@ services:
     build:
       context: ./media-worker
       dockerfile: Dockerfile
+      network: host
+      dns:
+        - 223.5.5.5
+        - 114.114.114.114
     container_name: framereview-media-worker
     restart: unless-stopped
     volumes:
@@ -114,7 +123,7 @@ services:
 
   # ── 全文搜索引擎 ─────────────────────────────────────────
   meilisearch:
-    image: registry.cn-hangzhou.aliyuncs.com/library/getmeili/meilisearch:v1.6
+    image: getmeili/meilisearch:v1.6
     container_name: framereview-meilisearch
     restart: unless-stopped
     environment:
@@ -132,6 +141,10 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      network: host
+      dns:
+        - 223.5.5.5
+        - 114.114.114.114
     container_name: framereview-horizon
     restart: unless-stopped
     command: php artisan horizon
