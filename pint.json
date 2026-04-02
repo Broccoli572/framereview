@@ -1,0 +1,9 @@
+{
+  "$schema": "vendor/laravel/pint/stubs/pint.json",
+  "preset": "laravel",
+  "rules": {
+    "phpdoc_order": true,
+    "no_superfluous_phpdoc_tags": false,
+    "not_operator_with_successor_space": true
+  }
+}

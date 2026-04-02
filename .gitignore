@@ -1,6 +1,7 @@
 # 依赖
 /node_modules
 /vendor
+/media-worker/node_modules
 
 # 环境变量
 .env
@@ -34,3 +35,7 @@ npm-debug.log*
 # Docker 体积优化：不上传这些
 docker-compose.override.yml
 .docker/
+
+# 测试
+.phpunit.cache
+

@@ -17,8 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role'    => \App\Http\Middleware\RequireWorkspaceRole::class,
+            'workspace' => \App\Http\Middleware\CurrentWorkspace::class,
+            'audit'   => \App\Http\Middleware\AuditLog::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -1,0 +1,14 @@
+includes:
+  - vendor/laravel/pint/stubs/phpstan.neon
+
+parameters:
+  paths:
+    - app
+    - database
+    - routes
+  level: 5
+  excludePaths:
+    - app/Http/Controllers/Api # 暂排除，待补类型
+  ignoreErrors:
+    - '#Call to an undefined method Illuminate/#'
+    - '#Access to an undefined property App\\Models\\#'

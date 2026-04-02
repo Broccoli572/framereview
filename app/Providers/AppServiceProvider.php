@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        // 生产环境启动前校验关键环境变量
+        if ($this->app->environment('production')) {
+            \App\Support\EnvValidator::validate();
+        }
     }
 }
