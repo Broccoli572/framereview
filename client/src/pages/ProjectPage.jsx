@@ -138,10 +138,10 @@ export default function ProjectPage() {
   }, [assets, sortBy, sortDir]);
 
   const filteredAssets = useMemo(() => {
-    if (filterType === 'all') return sortedAssets;
+      if (filterType === 'all') return sortedAssets;
     return sortedAssets.filter((a) => {
-      const t = a.type || a.mime_type || '';
-      if (filterType === 'video') return t.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv'].some(ext => (a.file_name || a.name || '').endsWith(ext));
+      const t = a.type || a.mimeType || '';
+      if (filterType === 'video') return t.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv'].some(ext => (a.name || '').endsWith(ext));
       if (filterType === 'image') return t.startsWith('image/');
       if (filterType === 'audio') return t.startsWith('audio/');
       return true;
@@ -301,9 +301,9 @@ export default function ProjectPage() {
                   >
                     {/* Thumbnail */}
                     <div className="aspect-video bg-surface-100 dark:bg-surface-800 relative">
-                      {asset.thumbnail_url ? (
+                      {asset.thumbnailUrl ? (
                         <img
-                          src={asset.thumbnail_url}
+                          src={asset.thumbnailUrl}
                           alt={asset.name}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -327,10 +327,10 @@ export default function ProjectPage() {
                     {/* Info */}
                     <div className="px-2.5 py-2">
                       <p className="text-sm font-medium text-surface-900 dark:text-surface-100 truncate">
-                        {asset.name || asset.file_name}
+                        {asset.name}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-xs text-surface-500">
-                        {asset.size && <span>{formatBytes(asset.size)}</span>}
+                        {asset.sizeBytes && <span>{formatBytes(asset.sizeBytes)}</span>}}
                         {asset.status && (
                           <Badge
                             variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}
@@ -378,18 +378,18 @@ export default function ProjectPage() {
                     <Cell>
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-16 flex-shrink-0 rounded bg-surface-100 dark:bg-surface-800 overflow-hidden">
-                          {asset.thumbnail_url ? (
-                            <img src={asset.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                          {asset.thumbnailUrl ? (
+                            <img src={asset.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full items-center justify-center">
                               <Film size={14} className="text-surface-400" />
                             </div>
                           )}
                         </div>
-                        <span className="font-medium truncate">{asset.name || asset.file_name}</span>
+                        <span className="font-medium truncate">{asset.name}</span>
                       </div>
                     </Cell>
-                    <Cell>{asset.size ? formatBytes(asset.size) : '-'}</Cell>
+                    <Cell>{asset.sizeBytes ? formatBytes(asset.sizeBytes) : '-'}</Cell>
                     <Cell>{asset.duration ? formatDuration(asset.duration) : '-'}</Cell>
                     <Cell>
                       <Badge
@@ -400,7 +400,7 @@ export default function ProjectPage() {
                       </Badge>
                     </Cell>
                     <Cell>
-                      <span className="text-xs">{formatRelativeTime(asset.updated_at)}</span>
+                      <span className="text-xs">{formatRelativeTime(asset.updatedAt)}</span>
                     </Cell>
                     <Cell>
                       <button
