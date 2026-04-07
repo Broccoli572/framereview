@@ -4,7 +4,6 @@
 # ⚠️  绿联 NAS 部署注意：
 #  1. 媒体目录挂载：已配置 /volume1/影像数据归档/.../1KM
 #  2. 镜像源：阿里云杭州节点（国内可访问）
-#  3. dns 配置在 build 参数里，解决 NAS Docker DNS 问题
 
 services:
   # ── 应用层 ────────────────────────────────────────────
@@ -13,9 +12,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       network: host
-      dns:
-        - 223.5.5.5
-        - 114.114.114.114
+    dns:
+      - 223.5.5.5
+      - 114.114.114.114
     container_name: framereview-app
     restart: unless-stopped
     working_dir: /var/www
@@ -102,9 +101,9 @@ services:
       context: ./media-worker
       dockerfile: Dockerfile
       network: host
-      dns:
-        - 223.5.5.5
-        - 114.114.114.114
+    dns:
+      - 223.5.5.5
+      - 114.114.114.114
     container_name: framereview-media-worker
     restart: unless-stopped
     volumes:
@@ -141,9 +140,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       network: host
-      dns:
-        - 223.5.5.5
-        - 114.114.114.114
+    dns:
+      - 223.5.5.5
+      - 114.114.114.114
     container_name: framereview-horizon
     restart: unless-stopped
     command: php artisan horizon
