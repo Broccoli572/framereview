@@ -302,8 +302,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
   }
 });
 
-// ── GET /api/projects/:projectId/assets ──────────────────
-router.get('/projects/:projectId/assets', authenticate, async (req, res, next) => {
+// ── GET assets list (mounted at /api/projects/:projectId/assets) ─
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const { page = 1, per_page = 50, sort = 'created_at', order = 'desc', type, folder_id, search, status } = req.query;

@@ -49,8 +49,8 @@ async function requireProjectAccessViaProject(projectId, userId) {
   return member ? project : null;
 }
 
-// ── GET /api/projects/:projectId/folders/tree ──────────────
-router.get('/projects/:projectId/folders/tree', authenticate, async (req, res, next) => {
+// ── GET folder tree (mounted at /api/projects/:projectId/folders) ──
+router.get('/tree', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectAccessViaProject(req.params.projectId, req.userId);
     if (!project) return res.status(403).json({ message: 'Unauthorized' });
@@ -82,8 +82,8 @@ router.get('/projects/:projectId/folders/tree', authenticate, async (req, res, n
   }
 });
 
-// ── POST /api/projects/:projectId/folders ────────────────
-router.post('/projects/:projectId/folders', authenticate, async (req, res, next) => {
+// ── POST create folder (mounted at /api/projects/:projectId/folders) ─
+router.post('/', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectAccessViaProject(req.params.projectId, req.userId);
     if (!project) return res.status(403).json({ message: 'Unauthorized' });
