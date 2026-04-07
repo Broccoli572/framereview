@@ -7,7 +7,7 @@ import { execSync } from 'child_process';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { logger } from '../utils/logger.js';
-import { MEDIA_ROOT, DB_CONFIG } from '../utils/db.js';
+import { MEDIA_ROOT, DATABASE_URL } from '../utils/db.js';
 
 export async function processVideoMetadata({ assetVersionId, filePath }) {
   const fullPath = join(MEDIA_ROOT, filePath);
