@@ -1,0 +1,20 @@
+# 自动转换换行符
+* text=auto
+
+# 强制 LF（Shell 脚本必须）
+*.sh text eol=lf
+
+# 图片/二进制不过滤
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Markdown 是文本
+*.md text
