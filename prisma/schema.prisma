@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -24,7 +21,6 @@ model User {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  // 关联
   workspaceMemberships WorkspaceMember[]
   roles           UserRole[]
   ownedProjects   Project[]     @relation("ProjectOwner")
@@ -35,13 +31,14 @@ model User {
   resolvedThreads ReviewThread[] @relation("ThreadResolver")
   createdShares   Share[]
   shareVisits     ShareVisit[]
+  uploadedVersions AssetVersion[] @relation("VersionUploader")
+  createdFolders  Folder[]       @relation("FolderCreator")
 
-  @@index([email])
   @@map("users")
 }
 
 model Workspace {
-  id        String    @default(uuid())
+  id        String    @id @default(uuid())
   name      String
   slug      String    @unique
   logo      String?
@@ -59,7 +56,7 @@ model Workspace {
 model WorkspaceMember {
   workspaceId String
   userId      String
-  role        String    // owner, admin, member
+  role        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -67,13 +64,12 @@ model WorkspaceMember {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([workspaceId, userId])
-  @@unique([workspaceId, userId])
   @@map("workspace_user")
 }
 
 model Role {
   id          String  @id @default(uuid())
-  name        String  @unique // system_admin, project_admin, editor, reviewer, viewer, guest
+  name        String  @unique
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -96,12 +92,12 @@ model UserRole {
 // ── 项目 & 资产 ──────────────────────────────────────────
 
 model Project {
-  id           String    @default(uuid())
+  id           String    @id @default(uuid())
   workspaceId  String
   name         String
   description  String?   @db.Text
   cover        String?
-  status       String    @default("active") // active, archived
+  status       String    @default("active")
   quotaBytes   BigInt?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -119,7 +115,7 @@ model Project {
 model ProjectMember {
   projectId String
   userId    String
-  role      String // project_admin, editor, reviewer, viewer, guest
+  role      String
   invitedAt DateTime @default(now())
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -130,7 +126,7 @@ model ProjectMember {
 }
 
 model Folder {
-  id        String    @default(uuid())
+  id        String    @id @default(uuid())
   projectId String
   parentId  String?
   name      String
@@ -143,7 +139,7 @@ model Folder {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
   children  Folder[] @relation("FolderTree")
-  creator   User     @relation(fields: [createdBy], references: [id])
+  creator   User     @relation("FolderCreator", fields: [createdBy], references: [id])
   assets    Asset[]
 
   @@index([projectId, parentId])
@@ -152,7 +148,7 @@ model Folder {
 }
 
 model Asset {
-  id               String    @default(uuid())
+  id               String    @id @default(uuid())
   projectId        String
   folderId         String?
   currentVersionId String?
@@ -161,8 +157,8 @@ model Asset {
   mimeType         String    @map("mime_type")
   sizeBytes        BigInt    @default(0) @map("size_bytes")
   sha256           String?
-  type             String    @default("video") // video, audio, image, document, archive
-  status           String    @default("pending") // pending, uploading, processing, ready, error
+  type             String    @default("video")
+  status           String    @default("pending")
   storagePath      String?   @map("storage_path")
   metadata         Json?     @db.Jsonb
   tags             Json?     @db.Jsonb
@@ -184,7 +180,7 @@ model Asset {
 }
 
 model AssetVersion {
-  id             String    @default(uuid())
+  id             String    @id @default(uuid())
   assetId        String
   versionNumber  Int       @map("version_number")
   filePath       String    @map("file_path")
@@ -195,10 +191,11 @@ model AssetVersion {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  asset          Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  uploader       User      @relation(fields: [uploadedBy], references: [id])
+  asset          Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  uploader       User            @relation("VersionUploader", fields: [uploadedBy], references: [id])
   preview        AssetPreview?
   reviewThreads  ReviewThread[]
+  shares         Share[]
 
   @@unique([assetId, versionNumber])
   @@index([assetId])
@@ -226,13 +223,13 @@ model AssetPreview {
 // ── 审片 ─────────────────────────────────────────────────
 
 model ReviewThread {
-  id                 String    @default(uuid())
+  id                 String    @id @default(uuid())
   assetVersionId     String    @map("asset_version_id")
-  type               String    @default("timecode") // timecode, frame, area
+  type               String    @default("timecode")
   timecodeSeconds    Float?    @map("timecode_seconds")
   frameNumber        Int?      @map("frame_number")
-  areaCoordinates    Json?     @map("area_coordinates") // {x, y, width, height}
-  status             String    @default("open") // open, resolved, confirmed
+  areaCoordinates    Json?     @map("area_coordinates")
+  status             String    @default("open")
   resolvedBy         String?
   resolvedAt         DateTime?
   createdAt          DateTime  @default(now())
@@ -248,7 +245,7 @@ model ReviewThread {
 }
 
 model ReviewComment {
-  id        String    @default(uuid())
+  id        String    @id @default(uuid())
   threadId  String
   userId    String
   parentId  String?
@@ -258,8 +255,8 @@ model ReviewComment {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  thread    ReviewThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread    ReviewThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent    ReviewComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies   ReviewComment[] @relation("CommentReplies")
 
@@ -270,14 +267,14 @@ model ReviewComment {
 // ── 分享 ─────────────────────────────────────────────────
 
 model Share {
-  id               String    @default(uuid())
+  id               String    @id @default(uuid())
   assetVersionId   String    @map("asset_version_id")
   token            String    @unique
   passwordHash     String?   @map("password_hash")
   expiresAt        DateTime? @map("expires_at")
-  permissions      String    @default("view") // view, download, download_hq
+  permissions      String    @default("view")
   isActive         Boolean   @default(true) @map("is_active")
-  watermarkPolicy  String?   @map("watermark_policy") // none, all, external_only
+  watermarkPolicy  String?   @map("watermark_policy")
   createdBy        String
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
