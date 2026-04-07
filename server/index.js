@@ -62,6 +62,28 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// 根路由
+app.get('/', (req, res) => {
+  res.json({
+    name: 'FrameReview API',
+    version: '2.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      workspaces: '/api/workspaces',
+      projects: '/api/workspaces/:workspaceId/projects',
+      folders: '/api/folders',
+      assets: '/api/assets',
+      shares: '/api/shares',
+      reviews: '/api/reviews',
+      notifications: '/api/notifications',
+      search: '/api/search',
+      admin: '/api/admin',
+    },
+  });
+});
+
 // ── Error Handler ─────────────────────────────────────────
 app.use(errorHandler);
 
