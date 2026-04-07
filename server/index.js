@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,9 +21,13 @@ import searchRoutes from './routes/search.js';
 import adminRoutes from './routes/admin.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const CLIENT_DIST = join(__dirname, '../client/dist');
 
 // ── Middleware ──────────────────────────────────────────
 app.use(helmet());
@@ -80,14 +86,23 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// 根路由
-app.get('/', (req, res) => {
-  res.json({
-    name: 'FrameReview API',
-    version: '2.0.0',
-    status: 'running',
+// ── Serve React SPA (production) ────────────────────────
+import { existsSync } from 'fs';
+
+if (existsSync(CLIENT_DIST)) {
+  // 静态资源（JS/CSS/图片等）
+  app.use(express.static(CLIENT_DIST, { maxAge: '1y', index: false }));
+
+  // SPA fallback: 所有非 /api 和非 /uploads 的 GET 请求都返回 index.html
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(join(CLIENT_DIST, 'index.html'));
   });
-});
+
+  console.log('📦 Serving React SPA from', CLIENT_DIST);
+}
 
 // ── Error Handler ─────────────────────────────────────────
 app.use(errorHandler);

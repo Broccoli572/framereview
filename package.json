@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "prisma generate && prisma db push",
+    "build": "cd client && npm install && npm run build && cd .. && prisma generate && prisma db push",
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "build:prisma": "prisma generate",
