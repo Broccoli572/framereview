@@ -108,7 +108,6 @@ services:
     container_name: framereview-media-worker
     restart: unless-stopped
     volumes:
-      - .:/var/www
       - /volume1/影像数据归档/小白Team内部影像数据/阅流视频存档/1KM:/nas/media
     depends_on:
       - redis
