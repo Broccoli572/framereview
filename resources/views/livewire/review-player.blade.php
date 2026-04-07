@@ -258,9 +258,9 @@
                         </span>
                         <button
                             wire:click="submitComment"
-                            @Unless(trim($newCommentText))
+                            @unless(trim($newCommentText))
                             disabled
-                            @endUnless
+                            @endunless
                             class="px-4 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                         >
                             发送

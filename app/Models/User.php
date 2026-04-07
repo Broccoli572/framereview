@@ -32,4 +32,11 @@ class User extends Authenticatable
             ->withPivot('role_id')
             ->withTimestamps();
     }
+
+    public function workspaceMemberships()
+    {
+        return $this->belongsToMany(Workspace::class, 'workspace_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 }
