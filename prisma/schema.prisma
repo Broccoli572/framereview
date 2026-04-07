@@ -1,0 +1,344 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── 用户 & 认证 ──────────────────────────────────────────
+
+model User {
+  id             String    @id @default(uuid())
+  name           String
+  email          String    @unique
+  password       String
+  avatar         String?
+  isActive       Boolean   @default(true)
+  emailVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  // 关联
+  workspaceMemberships WorkspaceMember[]
+  roles           UserRole[]
+  ownedProjects   Project[]     @relation("ProjectOwner")
+  createdAssets   Asset[]       @relation("AssetCreator")
+  activityLogs    ActivityLog[]
+  notifications   Notification[]
+  comments        ReviewComment[]
+  resolvedThreads ReviewThread[] @relation("ThreadResolver")
+  createdShares   Share[]
+  shareVisits     ShareVisit[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Workspace {
+  id        String    @default(uuid())
+  name      String
+  slug      String    @unique
+  logo      String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  members   WorkspaceMember[]
+  projects  Project[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        String    // owner, admin, member
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@unique([workspaceId, userId])
+  @@map("workspace_user")
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique // system_admin, project_admin, editor, reviewer, viewer, guest
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ── 项目 & 资产 ──────────────────────────────────────────
+
+model Project {
+  id           String    @default(uuid())
+  workspaceId  String
+  name         String
+  description  String?   @db.Text
+  cover        String?
+  status       String    @default("active") // active, archived
+  quotaBytes   BigInt?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folders      Folder[]
+  assets       Asset[]
+  members      ProjectMember[]
+
+  @@index([workspaceId, status])
+  @@map("projects")
+}
+
+model ProjectMember {
+  projectId String
+  userId    String
+  role      String // project_admin, editor, reviewer, viewer, guest
+  invitedAt DateTime @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@map("project_member")
+}
+
+model Folder {
+  id        String    @default(uuid())
+  projectId String
+  parentId  String?
+  name      String
+  sortOrder Int       @default(0)
+  createdBy String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Folder[] @relation("FolderTree")
+  creator   User     @relation(fields: [createdBy], references: [id])
+  assets    Asset[]
+
+  @@index([projectId, parentId])
+  @@index([projectId, sortOrder])
+  @@map("folders")
+}
+
+model Asset {
+  id               String    @default(uuid())
+  projectId        String
+  folderId         String?
+  currentVersionId String?
+  name             String
+  originalName     String?
+  mimeType         String    @map("mime_type")
+  sizeBytes        BigInt    @default(0) @map("size_bytes")
+  sha256           String?
+  type             String    @default("video") // video, audio, image, document, archive
+  status           String    @default("pending") // pending, uploading, processing, ready, error
+  storagePath      String?   @map("storage_path")
+  metadata         Json?     @db.Jsonb
+  tags             Json?     @db.Jsonb
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  creator          User      @relation("AssetCreator", fields: [createdBy], references: [id])
+  versions         AssetVersion[]
+  shares           Share[]
+
+  @@index([folderId, status])
+  @@index([projectId, status])
+  @@index([sha256])
+  @@map("assets")
+}
+
+model AssetVersion {
+  id             String    @default(uuid())
+  assetId        String
+  versionNumber  Int       @map("version_number")
+  filePath       String    @map("file_path")
+  sizeBytes      BigInt    @default(0) @map("size_bytes")
+  sha256         String?
+  notes          String?   @db.Text
+  uploadedBy     String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  asset          Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  uploader       User      @relation(fields: [uploadedBy], references: [id])
+  preview        AssetPreview?
+  reviewThreads  ReviewThread[]
+
+  @@unique([assetId, versionNumber])
+  @@index([assetId])
+  @@map("asset_versions")
+}
+
+model AssetPreview {
+  id             String    @id @default(uuid())
+  assetVersionId String    @unique @map("asset_version_id")
+  posterUrl      String?   @map("poster_url")
+  spriteUrl      String?   @map("sprite_url")
+  waveformUrl    String?   @map("waveform_url")
+  proxyUrl       String?   @map("proxy_url")
+  hlsUrl         String?   @map("hls_url")
+  metadata       Json?     @db.Jsonb
+  keyframes      Json?     @db.Jsonb
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  assetVersion   AssetVersion @relation(fields: [assetVersionId], references: [id], onDelete: Cascade)
+
+  @@map("asset_previews")
+}
+
+// ── 审片 ─────────────────────────────────────────────────
+
+model ReviewThread {
+  id                 String    @default(uuid())
+  assetVersionId     String    @map("asset_version_id")
+  type               String    @default("timecode") // timecode, frame, area
+  timecodeSeconds    Float?    @map("timecode_seconds")
+  frameNumber        Int?      @map("frame_number")
+  areaCoordinates    Json?     @map("area_coordinates") // {x, y, width, height}
+  status             String    @default("open") // open, resolved, confirmed
+  resolvedBy         String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  assetVersion       AssetVersion @relation(fields: [assetVersionId], references: [id], onDelete: Cascade)
+  resolver           User?        @relation("ThreadResolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+  comments           ReviewComment[]
+
+  @@index([assetVersionId, status])
+  @@map("review_threads")
+}
+
+model ReviewComment {
+  id        String    @default(uuid())
+  threadId  String
+  userId    String
+  parentId  String?
+  content   String    @db.Text
+  mentions  Json?     @db.Jsonb
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  thread    ReviewThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    ReviewComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   ReviewComment[] @relation("CommentReplies")
+
+  @@index([threadId])
+  @@map("review_comments")
+}
+
+// ── 分享 ─────────────────────────────────────────────────
+
+model Share {
+  id               String    @default(uuid())
+  assetVersionId   String    @map("asset_version_id")
+  token            String    @unique
+  passwordHash     String?   @map("password_hash")
+  expiresAt        DateTime? @map("expires_at")
+  permissions      String    @default("view") // view, download, download_hq
+  isActive         Boolean   @default(true) @map("is_active")
+  watermarkPolicy  String?   @map("watermark_policy") // none, all, external_only
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  assetVersion     AssetVersion @relation(fields: [assetVersionId], references: [id], onDelete: Cascade)
+  creator          User         @relation(fields: [createdBy], references: [id])
+  visits           ShareVisit[]
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("shares")
+}
+
+model ShareVisit {
+  id        String   @id @default(uuid())
+  shareId   String
+  userId    String?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  visitedAt DateTime @default(now())
+
+  share     Share @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  visitor   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("share_visits")
+}
+
+// ── 日志 & 通知 ───────────────────────────────────────────
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  userId      String?
+  action      String
+  subjectType String?   @map("subject_type")
+  subjectId   String?   @map("subject_id")
+  properties  Json?     @db.Jsonb
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now())
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([subjectType, subjectId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String?   @db.Text
+  data      Json?     @db.Jsonb
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}

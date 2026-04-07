@@ -1,134 +1,64 @@
-# Render Deployment Blueprint
-# Docs: https://render.com/docs/blueprint-spec
-
-database:
-  name: framereview
-  databaseName: framereview
-  plan: starter
-  ipAllowList: []
-
-redis:
-  name: framereview-redis
-  plan: starter
-  ipAllowList: []
-
+databaseOrientation: vertical
 services:
-  # ── Web Service (PHP + Nginx) ─────────────────────────────
-  - type: web
-    name: framereview
-    env: php
-    region: singapore
-    plan: starter
-    buildCommand: |
-      composer install --no-interaction --prefer-dist --optimize-autoloader
-      php artisan key:generate --no-interaction --force
-      php artisan migrate --no-interaction --force
-    startCommand: ./start.sh
-    healthCheckPath: /api/health
-    envVars:
-      - key: APP_ENV
-        value: production
-      - key: APP_DEBUG
-        value: false
-      - key: APP_KEY
-        sync: false
-      - key: APP_URL
-        fromService:
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
-      - key: DB_CONNECTION
-        value: pgsql
-      - key: DB_HOST
-        fromDatabase:
-          name: framereview
-          attr: hostname
-      - key: DB_PORT
-        value: "5432"
-      - key: DB_DATABASE
-        fromDatabase:
-          name: framereview
-          attr: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: framereview
-          attr: username
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: framereview
-          attr: password
-      - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: framereview-redis
-          attr: hostname
-      - key: REDIS_PORT
-        value: "6379"
-      - key: REDIS_PASSWORD
-        fromService:
-          type: redis
-          name: framereview-redis
-          attr: password
-        sync: false
-      - key: CACHE_STORE
-        value: redis
-      - key: QUEUE_CONNECTION
-        value: redis
-      - key: SESSION_DRIVER
-        value: redis
-      - key: BROADCAST_CONNECTION
-        value: redis
-      - key: FILESYSTEM_DISK
-        value: public
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_DEFAULT_REGION
-        value: us-east-1
-      - key: AWS_BUCKET
-        sync: false
-      - key: AWS_ENDPOINT
-        sync: false
-      - key: AWS_USE_PATH_STYLE_ENDPOINT
-        value: "true"
-      - key: MEDIA_ROOT
-        value: /var/opt/media
-      - key: PHP_UPLOAD_MAX_FILESIZE
-        value: 10G
-      - key: PHP_POST_MAX_SIZE
-        value: 10G
-      - key: MEDIA_WORKER_ENABLED
-        value: "false"
-
-  # ── Background Worker (Queue Consumer) ────────────────────
-  - type: worker
-    name: framereview-worker
+  - name: framereview-web
     env: node
     region: singapore
     plan: starter
-    buildCommand: |
-      cd media-worker && npm install --omit=dev --registry=https://registry.npmmirror.com
-    startCommand: cd media-worker && node src/index.js
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: framereview-redis
-          attr: hostname
-      - key: REDIS_PORT
-        value: "6379"
-      - key: REDIS_PASSWORD
-        fromService:
-          type: redis
-          name: framereview-redis
-          attr: password
-        sync: false
+      - key: PORT
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
-          name: framereview
-          attr: connectionString
+          name: framereview-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: framereview-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: S3_ENDPOINT
+        value: https://s3.amazonaws.com
+      - key: S3_BUCKET
+        value: framereview-media
+      - key: S3_REGION
+        value: us-east-1
+      - key: MEILISEARCH_HOST
+        value: https://search-us-east-1.railway.internal:7700
+      - key: MEILISEARCH_KEY
         sync: false
-      - key: MEDIA_ROOT
-        value: /var/opt/media
+
+  - name: framereview-worker
+    env: node
+    region: singapore
+    plan: starter
+    buildCommand: cd media-worker && npm install && npx prisma generate
+    startCommand: cd media-worker && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: framereview-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: framereview-redis
+          property: connectionString
+
+  - name: framereview-redis
+    env: redis
+    region: singapore
+    plan: starter
+
+databases:
+  - name: framereview-db
+    databaseName: framereview
+    plan: starter
