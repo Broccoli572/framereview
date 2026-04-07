@@ -1,0 +1,134 @@
+# Render Deployment Blueprint
+# Docs: https://render.com/docs/blueprint-spec
+
+database:
+  name: framereview
+  databaseName: framereview
+  plan: starter
+  ipAllowList: []
+
+redis:
+  name: framereview-redis
+  plan: starter
+  ipAllowList: []
+
+services:
+  # ── Web Service (PHP + Nginx) ─────────────────────────────
+  - type: web
+    name: framereview
+    env: php
+    region: singapore
+    plan: starter
+    buildCommand: |
+      composer install --no-interaction --prefer-dist --optimize-autoloader
+      php artisan key:generate --no-interaction --force
+      php artisan migrate --no-interaction --force
+    startCommand: ./start.sh
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        sync: false
+      - key: APP_URL
+        fromService:
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: framereview
+          attr: hostname
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_DATABASE
+        fromDatabase:
+          name: framereview
+          attr: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: framereview
+          attr: username
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: framereview
+          attr: password
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: framereview-redis
+          attr: hostname
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: framereview-redis
+          attr: password
+        sync: false
+      - key: CACHE_STORE
+        value: redis
+      - key: QUEUE_CONNECTION
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: BROADCAST_CONNECTION
+        value: redis
+      - key: FILESYSTEM_DISK
+        value: public
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        value: us-east-1
+      - key: AWS_BUCKET
+        sync: false
+      - key: AWS_ENDPOINT
+        sync: false
+      - key: AWS_USE_PATH_STYLE_ENDPOINT
+        value: "true"
+      - key: MEDIA_ROOT
+        value: /var/opt/media
+      - key: PHP_UPLOAD_MAX_FILESIZE
+        value: 10G
+      - key: PHP_POST_MAX_SIZE
+        value: 10G
+      - key: MEDIA_WORKER_ENABLED
+        value: "false"
+
+  # ── Background Worker (Queue Consumer) ────────────────────
+  - type: worker
+    name: framereview-worker
+    env: node
+    region: singapore
+    plan: starter
+    buildCommand: |
+      cd media-worker && npm install --omit=dev --registry=https://registry.npmmirror.com
+    startCommand: cd media-worker && node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: framereview-redis
+          attr: hostname
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: framereview-redis
+          attr: password
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: framereview
+          attr: connectionString
+        sync: false
+      - key: MEDIA_ROOT
+        value: /var/opt/media

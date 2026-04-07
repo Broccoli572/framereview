@@ -1,0 +1,49 @@
+# Render ignore — 不上传到 Render 构建环境的文件
+
+# 依赖（composer/npm 会自动安装）
+/vendor/
+/node_modules/
+/media-worker/node_modules/
+
+# Git
+/.git/
+.gitignore
+
+# Docker 相关（Render 不使用）
+/docker/
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# 环境变量（Render 用服务商提供的环境变量）
+.env
+.env.*
+!.env.example
+
+# 存储文件
+/storage/app/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/views/
+/storage/logs/
+*.log
+
+# 本地测试文件
+/storage/media/
+/media/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 文档（可选保留）
+README*.md
+CHANGELOG*
+docs/
+*.txt
