@@ -10,7 +10,8 @@
  */
 
 import 'dotenv/config';
-import { Worker, Queue, Redis } from 'bullmq';
+import pkg from 'bullmq';
+const { Worker, Queue, Redis } = pkg;
 import { initFfprobe, processVideoMetadata } from './tasks/ffprobe.js';
 import { processThumbnail } from './tasks/thumbnail.js';
 import { processSprite } from './tasks/sprite.js';
