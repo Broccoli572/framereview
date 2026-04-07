@@ -14,6 +14,7 @@ import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Dropdown from '../components/ui/Dropdown';
+import Table, { Head, Body, Row, HeaderCell, Cell } from '../components/ui/Table';
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/utils';
 import clsx from 'clsx';
 
@@ -101,11 +102,13 @@ export default function ProjectPage() {
       const params = new URLSearchParams();
       if (selectedFolder) params.set('folder_id', selectedFolder);
       if (filterType !== 'all') params.set('type', filterType);
-      params.set('sort', sortBy);
+      // Map frontend sort key to backend sort key
+      const sortParam = sortBy === 'size' ? 'size_bytes' : sortBy;
+      params.set('sort', sortParam);
       params.set('order', sortDir);
       const res = await client.get(`/projects/${projectId}/assets?${params}`);
       const responseData = res.data?.data || res.data;
-      // 后端返回 { data: [...], total, page, per_page } 或直接返回数组
+      // 后端返回 { data: [...], total, page, per_page }
       return Array.isArray(responseData) ? responseData : (responseData?.data || []);
     },
     enabled: !!projectId,
@@ -127,17 +130,26 @@ export default function ProjectPage() {
     },
   });
 
+  // Map frontend sort keys to backend query params AND display field names
+  const sortConfig = useMemo(() => ({
+    updated_at: { param: 'updated_at', field: 'updatedAt' },
+    created_at: { param: 'created_at', field: 'createdAt' },
+    name: { param: 'name', field: 'name' },
+    size: { param: 'size_bytes', field: 'sizeBytes' },
+  }), []);
+
   const sortedAssets = useMemo(() => {
     if (!assets) return [];
+    const cfg = sortConfig[sortBy] || { field: sortBy };
     return [...assets].sort((a, b) => {
-      let va = a[sortBy] || '';
-      let vb = b[sortBy] || '';
+      let va = a[cfg.field] || '';
+      let vb = b[cfg.field] || '';
       if (typeof va === 'string') va = va.toLowerCase();
       if (typeof vb === 'string') vb = vb.toLowerCase();
       if (sortDir === 'asc') return va > vb ? 1 : -1;
       return va < vb ? 1 : -1;
     });
-  }, [assets, sortBy, sortDir]);
+  }, [assets, sortBy, sortDir, sortConfig]);
 
   const filteredAssets = useMemo(() => {
       if (filterType === 'all') return sortedAssets;
