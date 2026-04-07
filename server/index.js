@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -30,7 +31,10 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 const CLIENT_DIST = join(__dirname, '../client/dist');
 
 // ── Middleware ──────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({
   origin: (origin, callback) => {
     const allowed = [
@@ -87,8 +91,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── Serve React SPA (production) ────────────────────────
-import { existsSync } from 'fs';
-
 if (existsSync(CLIENT_DIST)) {
   // 静态资源（JS/CSS/图片等）
   app.use(express.static(CLIENT_DIST, { maxAge: '1y', index: false }));
