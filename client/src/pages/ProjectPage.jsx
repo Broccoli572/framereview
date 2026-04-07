@@ -96,7 +96,7 @@ export default function ProjectPage() {
     enabled: !!projectId,
   });
 
-  const { data: assets, isLoading: assetsLoading } = useQuery({
+  const { data: assets, isLoading: assetsLoading, error: assetsError } = useQuery({
     queryKey: ['project-assets', projectId, selectedFolder, filterType, sortBy, sortDir],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -106,13 +106,22 @@ export default function ProjectPage() {
       const sortParam = sortBy === 'size' ? 'size_bytes' : sortBy;
       params.set('sort', sortParam);
       params.set('order', sortDir);
+      console.log('[ProjectPage] Fetching assets:', `/projects/${projectId}/assets?${params}`);
       const res = await client.get(`/projects/${projectId}/assets?${params}`);
+      console.log('[ProjectPage] Assets API response:', JSON.stringify(res.data).slice(0, 500));
       const responseData = res.data?.data || res.data;
       // 后端返回 { data: [...], total, page, per_page }
-      return Array.isArray(responseData) ? responseData : (responseData?.data || []);
+      const result = Array.isArray(responseData) ? responseData : (responseData?.data || []);
+      console.log('[ProjectPage] Parsed assets count:', result.length);
+      return result;
     },
     enabled: !!projectId,
   });
+
+  // Debug: log error if any
+  if (assetsError) {
+    console.error('[ProjectPage] Assets query error:', assetsError);
+  }
 
   const createFolderMutation = useMutation({
     mutationFn: (name) => client.post(`/projects/${projectId}/folders`, { name, parent_id: selectedFolder }),
@@ -163,6 +172,9 @@ export default function ProjectPage() {
   }, [sortedAssets, filterType]);
 
   const isLoading = projLoading || assetsLoading;
+
+  // Debug info (visible in console)
+  console.log('[ProjectPage] Render state:', { projectId, assetsCount: assets?.length, isLoading, hasError: !!assetsError });
 
   return (
     <div className="h-full flex">
