@@ -4,7 +4,7 @@ services:
     env: node
     region: singapore
     plan: starter
-    buildCommand: npm install --production=false && npx prisma generate && npx prisma db push
+    buildCommand: npm install --production=false && cd client && npm install && npm run build && cd .. && npx prisma generate && npx prisma db push
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
