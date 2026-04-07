@@ -96,15 +96,17 @@ export default function ProjectPage() {
   });
 
   const { data: assets, isLoading: assetsLoading } = useQuery({
-    queryKey: ['project-assets', projectId, selectedFolder, filterType],
+    queryKey: ['project-assets', projectId, selectedFolder, filterType, sortBy, sortDir],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedFolder) params.set('folder_id', selectedFolder);
       if (filterType !== 'all') params.set('type', filterType);
       params.set('sort', sortBy);
-      params.set('direction', sortDir);
+      params.set('order', sortDir);
       const res = await client.get(`/projects/${projectId}/assets?${params}`);
-      return res.data?.data || res.data || [];
+      const responseData = res.data?.data || res.data;
+      // 后端返回 { data: [...], total, page, per_page } 或直接返回数组
+      return Array.isArray(responseData) ? responseData : (responseData?.data || []);
     },
     enabled: !!projectId,
   });
@@ -330,7 +332,7 @@ export default function ProjectPage() {
                         {asset.name}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-xs text-surface-500">
-                        {asset.sizeBytes && <span>{formatBytes(asset.sizeBytes)}</span>}}
+                        {asset.sizeBytes && <span>{formatBytes(asset.sizeBytes)}</span>}
                         {asset.status && (
                           <Badge
                             variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}

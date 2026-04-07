@@ -136,13 +136,11 @@ export default function WorkspacePage() {
               <Link to={`/project/${project.id}`}>
                 <Card hover className="h-full">
                   {/* Cover image */}
-                  {project.cover_url || project.thumbnail ? (
+                  {project.cover ? (
                     <div className="mb-3 aspect-video overflow-hidden rounded-lg bg-surface-100 dark:bg-surface-800">
-                      <img
-                        src={project.cover_url || project.thumbnail}
-                        alt={project.name}
-                        className="h-full w-full object-cover"
-                      />
+                      <div className="h-full w-full bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/40 dark:to-brand-800/40 flex items-center justify-center">
+                        <Film size={24} className="text-brand-500" />
+                      </div>
                     </div>
                   ) : (
                     <div className="mb-3 flex aspect-video items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
@@ -162,12 +160,12 @@ export default function WorkspacePage() {
                   <div className="mt-3 flex items-center gap-3 text-xs text-surface-500 dark:text-surface-400">
                     <span className="flex items-center gap-1">
                       <Film size={12} />
-                      {project.assets_count ?? 0} 资源
+                      {project._count?.assets ?? project.assets_count ?? 0} 资源
                     </span>
-                    {project.updated_at && (
+                    {(project.updatedAt || project.updated_at) && (
                       <span className="flex items-center gap-1 ml-auto">
                         <Clock size={12} />
-                        {formatRelativeTime(project.updated_at)}
+                        {formatRelativeTime(project.updatedAt || project.updated_at)}
                       </span>
                     )}
                   </div>

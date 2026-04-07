@@ -128,16 +128,16 @@ export default function DashboardPage() {
                 <div className="mt-4 flex items-center gap-4 text-xs text-surface-500 dark:text-surface-400">
                   <span className="flex items-center gap-1">
                     <Users size={12} />
-                    {ws.members_count ?? ws.member_count ?? 0} 成员
+                    {ws.memberCount ?? ws.members_count ?? 0} 成员
                   </span>
                   <span className="flex items-center gap-1">
                     <Film size={12} />
-                    {ws.assets_count ?? ws.project_count ?? 0} 资源
+                    {ws.projectCount ?? ws.assets_count ?? ws.project_count ?? 0} 资源
                   </span>
-                  {ws.updated_at && (
+                  {ws.updatedAt && (
                     <span className="flex items-center gap-1 ml-auto">
                       <Clock size={12} />
-                      {formatRelativeTime(ws.updated_at)}
+                      {formatRelativeTime(ws.updatedAt)}
                     </span>
                   )}
                 </div>
