@@ -62,7 +62,7 @@ router.get('/', authenticate, async (req, res, next) => {
       createdAt: m.workspace.createdAt,
     }));
 
-    res.json({ workspaces });
+    res.json({ data: workspaces });
   } catch (err) {
     next(err);
   }
@@ -97,7 +97,7 @@ router.post('/', authenticate, async (req, res, next) => {
       },
     });
 
-    res.status(201).json(workspace);
+    res.status(201).json({ data: workspace });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: 'Validation failed', errors: err.errors });
@@ -124,7 +124,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
     if (!workspace) return res.status(404).json({ message: 'Workspace not found' });
 
-    res.json(workspace);
+    res.json({ data: workspace });
   } catch (err) {
     next(err);
   }

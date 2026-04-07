@@ -129,7 +129,7 @@ router.post('/', authenticate, async (req, res, next) => {
       data: { projectId: project.id, userId: req.userId, role: 'owner' },
     });
 
-    res.status(201).json(project);
+    res.status(201).json({ data: project });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: 'Validation failed', errors: err.errors });
@@ -162,7 +162,7 @@ directRouter.get('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json(detail);
+    res.json({ data: detail });
   } catch (err) {
     next(err);
   }
