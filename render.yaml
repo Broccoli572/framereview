@@ -1,11 +1,10 @@
-databaseOrientation: vertical
 services:
-  - name: framereview-web
+  - type: web
+    name: framereview-web
     env: node
     region: singapore
     plan: starter
-    yarn: false
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    buildCommand: npm install --production=false && npx prisma generate
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -31,13 +30,13 @@ services:
       - key: S3_REGION
         value: us-east-1
 
-  - name: framereview-worker
+  - type: worker
+    name: framereview-worker
     env: node
     region: singapore
     plan: starter
-    yarn: false
-    buildCommand: cd media-worker && npm install && npx prisma generate
-    startCommand: cd media-worker && npm start
+    buildCommand: npm install --production=false && npx prisma generate
+    startCommand: node media-worker/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -51,10 +50,11 @@ services:
           name: framereview-redis
           property: connectionString
 
-  - name: framereview-redis
-    env: redis
+  - type: redis
+    name: framereview-redis
     region: singapore
     plan: starter
+    ipAllowList: []
 
 databases:
   - name: framereview-db
