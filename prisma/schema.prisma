@@ -22,17 +22,18 @@ model User {
   deletedAt      DateTime?
 
   workspaceMemberships WorkspaceMember[]
-  roles           UserRole[]
-  ownedProjects   Project[]     @relation("ProjectOwner")
-  createdAssets   Asset[]       @relation("AssetCreator")
-  activityLogs    ActivityLog[]
-  notifications   Notification[]
-  comments        ReviewComment[]
-  resolvedThreads ReviewThread[] @relation("ThreadResolver")
-  createdShares   Share[]
-  shareVisits     ShareVisit[]
-  uploadedVersions AssetVersion[] @relation("VersionUploader")
-  createdFolders  Folder[]       @relation("FolderCreator")
+  roles                UserRole[]
+  ownedProjects        Project[]       @relation("ProjectOwner")
+  projectMemberships   ProjectMember[] @relation("ProjectMemberUser")
+  createdAssets        Asset[]         @relation("AssetCreator")
+  activityLogs         ActivityLog[]
+  notifications        Notification[]
+  comments             ReviewComment[]
+  resolvedThreads      ReviewThread[]  @relation("ThreadResolver")
+  createdShares        Share[]         @relation("ShareCreator")
+  shareVisits          ShareVisit[]
+  uploadedVersions     AssetVersion[]  @relation("VersionUploader")
+  createdFolders       Folder[]        @relation("FolderCreator")
 
   @@map("users")
 }
@@ -94,6 +95,7 @@ model UserRole {
 model Project {
   id           String    @id @default(uuid())
   workspaceId  String
+  ownerId      String?   @map("owner_id")
   name         String
   description  String?   @db.Text
   cover        String?
@@ -104,6 +106,7 @@ model Project {
   deletedAt    DateTime?
 
   workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner        User?        @relation("ProjectOwner", fields: [ownerId], references: [id])
   folders      Folder[]
   assets       Asset[]
   members      ProjectMember[]
@@ -119,7 +122,7 @@ model ProjectMember {
   invitedAt DateTime @default(now())
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User    @relation("ProjectMemberUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([projectId, userId])
   @@map("project_member")
@@ -160,8 +163,8 @@ model Asset {
   type             String    @default("video")
   status           String    @default("pending")
   storagePath      String?   @map("storage_path")
-  metadata         Json?     @db.Jsonb
-  tags             Json?     @db.Jsonb
+  metadata         Json?
+  tags             Json?
   createdBy        String
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -171,7 +174,6 @@ model Asset {
   folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   creator          User      @relation("AssetCreator", fields: [createdBy], references: [id])
   versions         AssetVersion[]
-  shares           Share[]
 
   @@index([folderId, status])
   @@index([projectId, status])
@@ -210,8 +212,8 @@ model AssetPreview {
   waveformUrl    String?   @map("waveform_url")
   proxyUrl       String?   @map("proxy_url")
   hlsUrl         String?   @map("hls_url")
-  metadata       Json?     @db.Jsonb
-  keyframes      Json?     @db.Jsonb
+  metadata       Json?
+  keyframes      Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -250,7 +252,7 @@ model ReviewComment {
   userId    String
   parentId  String?
   content   String    @db.Text
-  mentions  Json?     @db.Jsonb
+  mentions  Json?
   isDeleted Boolean   @default(false) @map("is_deleted")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -280,7 +282,7 @@ model Share {
   updatedAt        DateTime  @updatedAt
 
   assetVersion     AssetVersion @relation(fields: [assetVersionId], references: [id], onDelete: Cascade)
-  creator          User         @relation(fields: [createdBy], references: [id])
+  creator          User         @relation("ShareCreator", fields: [createdBy], references: [id])
   visits           ShareVisit[]
 
   @@index([token])
@@ -310,7 +312,7 @@ model ActivityLog {
   action      String
   subjectType String?   @map("subject_type")
   subjectId   String?   @map("subject_id")
-  properties  Json?     @db.Jsonb
+  properties  Json?
   ipAddress   String?   @map("ip_address")
   userAgent   String?   @map("user_agent")
   createdAt   DateTime  @default(now())
@@ -329,7 +331,7 @@ model Notification {
   type      String
   title     String
   body      String?   @db.Text
-  data      Json?     @db.Jsonb
+  data      Json?
   readAt    DateTime? @map("read_at")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
