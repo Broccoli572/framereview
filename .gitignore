@@ -10,6 +10,8 @@ media-worker/node_modules/
 # 构建产物
 dist/
 build/
+client/dist/
+client/node_modules/
 
 # IDE
 .idea/

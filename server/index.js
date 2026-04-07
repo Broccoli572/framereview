@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 
 import authRoutes from './routes/auth.js';
 import workspaceRoutes from './routes/workspaces.js';
-import projectRoutes from './routes/projects.js';
+import projectRoutes, { directRouter as projectDirectRoutes } from './routes/projects.js';
 import folderRoutes from './routes/folders.js';
 import assetRoutes from './routes/assets.js';
 import shareRoutes from './routes/shares.js';
@@ -21,16 +21,27 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 // ── Middleware ──────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    const allowed = [
+      'http://localhost:5173',
+      'https://broccolis-video-system.onrender.com',
+    ];
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // 开发阶段允许所有来源
+    }
+  },
   credentials: true,
 }));
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cookieParser());
 
 // 速率限制
@@ -45,13 +56,20 @@ app.use('/api', limiter);
 // ── Prisma ───────────────────────────────────────────────
 export const prisma = new PrismaClient();
 
+// ── Static files (uploads) ──────────────────────────────
+app.use('/uploads', express.static(UPLOAD_DIR));
+
 // ── Routes ────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/workspaces/:workspaceId/projects', projectRoutes);
+app.use('/api/projects', projectDirectRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/projects/:projectId/assets', assetRoutes);
 app.use('/api/shares', shareRoutes);
+app.use('/api/projects/:projectId/shares', shareRoutes);
+app.use('/api/assets/:assetId/shares', shareRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/search', searchRoutes);
@@ -68,19 +86,6 @@ app.get('/', (req, res) => {
     name: 'FrameReview API',
     version: '2.0.0',
     status: 'running',
-    endpoints: {
-      health: '/api/health',
-      auth: '/api/auth',
-      workspaces: '/api/workspaces',
-      projects: '/api/workspaces/:workspaceId/projects',
-      folders: '/api/folders',
-      assets: '/api/assets',
-      shares: '/api/shares',
-      reviews: '/api/reviews',
-      notifications: '/api/notifications',
-      search: '/api/search',
-      admin: '/api/admin',
-    },
   });
 });
 
