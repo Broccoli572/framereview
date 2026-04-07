@@ -33,6 +33,19 @@ app.set('trust proxy', 1);
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 const CLIENT_DIST = join(__dirname, '../client/dist');
 
+// ── Global BigInt serialization fix ─────────────────────
+// Prisma returns BigInt for sizeBytes etc., but JSON.stringify can't serialize it.
+// This monkey-patches res.json to convert all BigInt values to Number before stringifying.
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = function (data) {
+    return originalJson(JSON.parse(JSON.stringify(data, (_key, value) =>
+      typeof value === 'bigint' ? Number(value) : value
+    )));
+  };
+  next();
+});
+
 // ── Middleware ──────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: false,
