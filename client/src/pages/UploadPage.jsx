@@ -106,6 +106,7 @@ export default function UploadPage() {
 
           const formData = new FormData();
           formData.append('file', fileItem.file);
+          formData.append('project_id', projectId);
           if (folderId) formData.append('folder_id', folderId);
 
           await client.post(`/projects/${projectId}/assets/upload`, formData, {
