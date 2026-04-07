@@ -9,8 +9,13 @@ const useAuthStore = create((set, get) => ({
   isLoading: true,
   error: null,
 
-  // Computed (derived boolean, not a function)
+  // Computed (derived boolean – use as a property, NOT a function)
   get isAuthenticated() {
+    return !!this.token && !!this.user;
+  },
+
+  // Convenience method for use in components that need a function
+  checkAuthenticated() {
     return !!this.token && !!this.user;
   },
 

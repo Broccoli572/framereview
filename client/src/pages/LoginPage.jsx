@@ -5,14 +5,14 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, error, isLoading, isAuthenticated } = useAuthStore();
+  const { login, error, isLoading, checkAuthenticated } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
 
   React.useEffect(() => {
-    if (isAuthenticated()) {
+    if (checkAuthenticated()) {
       navigate('/', { replace: true });
     }
   }, []);
