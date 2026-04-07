@@ -4,6 +4,7 @@ services:
     env: node
     region: singapore
     plan: starter
+    yarn: false
     buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
     startCommand: npm start
     healthCheckPath: /api/health
@@ -29,15 +30,12 @@ services:
         value: framereview-media
       - key: S3_REGION
         value: us-east-1
-      - key: MEILISEARCH_HOST
-        value: https://search-us-east-1.railway.internal:7700
-      - key: MEILISEARCH_KEY
-        sync: false
 
   - name: framereview-worker
     env: node
     region: singapore
     plan: starter
+    yarn: false
     buildCommand: cd media-worker && npm install && npx prisma generate
     startCommand: cd media-worker && npm start
     envVars:
