@@ -86,16 +86,17 @@ export const prisma = new PrismaClient();
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // ── Routes ────────────────────────────────────────────────
+// NOTE: More specific routes MUST be registered before generic /:param routes
+// to prevent greedy matching (e.g., /projects/:id must not swallow /projects/:id/assets)
 app.use('/api/auth', authRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/workspaces/:workspaceId/projects', projectRoutes);
-app.use('/api/projects', projectDirectRoutes);
-app.use('/api/folders', folderRoutes);
-app.use('/api/assets', assetRoutes);
+// Project-scoped sub-resources (must be BEFORE generic /api/projects/:id)
 app.use('/api/projects/:projectId/assets', assetRoutes);
+app.use('/api/projects/:projectId/folders', folderRoutes);
+// Generic project routes (/:id would otherwise greedily match sub-resource paths)
+app.use('/api/projects', projectDirectRoutes);
 app.use('/api/shares', shareRoutes);
-app.use('/api/projects/:projectId/shares', shareRoutes);
-app.use('/api/assets/:assetId/shares', shareRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/search', searchRoutes);
