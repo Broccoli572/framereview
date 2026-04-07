@@ -332,10 +332,12 @@ router.get('/projects/:projectId/assets', authenticate, async (req, res, next) =
     const where = {
       projectId,
       deletedAt: null,
-      ...(type && { type }),
-      ...(folder_id && { folderId: folder_id }),
+      ...(type && type !== 'all' && type !== 'folder' && { type }),
       ...(status && { status }),
-      ...((!folder_id && type !== 'folder') && { folderId: folder_id === '' ? null : undefined }),
+      // folder filtering: only when explicitly provided
+      ...(folder_id !== undefined && folder_id !== ''
+        ? { folderId: folder_id }
+        : (folder_id === '' ? { folderId: null } : {})),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
