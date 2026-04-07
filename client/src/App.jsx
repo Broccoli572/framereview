@@ -21,15 +21,13 @@ const AdminPage = lazy(() => import('./pages/AdminPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function ProtectedRoute({ children }) {
-  const user = useAuthStore((s) => s.user);
-  const token = useAuthStore((s) => s.token);
+  const { token, user } = useAuthStore();
   if (!token || !user) return <Navigate to="/login" replace />;
   return children;
 }
 
 function GuestRoute({ children }) {
-  const user = useAuthStore((s) => s.user);
-  const token = useAuthStore((s) => s.token);
+  const { token, user } = useAuthStore();
   if (token && user) return <Navigate to="/" replace />;
   return children;
 }

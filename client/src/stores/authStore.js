@@ -9,16 +9,6 @@ const useAuthStore = create((set, get) => ({
   isLoading: true,
   error: null,
 
-  // Computed (derived boolean – use as a property, NOT a function)
-  get isAuthenticated() {
-    return !!this.token && !!this.user;
-  },
-
-  // Convenience method for use in components that need a function
-  checkAuthenticated() {
-    return !!this.token && !!this.user;
-  },
-
   // Actions
   setTokens: ({ token, refreshToken }) => {
     localStorage.setItem('token', token);
