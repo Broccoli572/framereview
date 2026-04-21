@@ -10,6 +10,7 @@
     "dev": "nodemon server/index.js",
     "worker:start": "npm --prefix media-worker run start",
     "worker:dev": "npm --prefix media-worker run dev",
+    "check:runtime": "powershell -ExecutionPolicy Bypass -File scripts/check-runtime.ps1",
     "build:prisma": "npx prisma@5.22.0 generate",
     "db:push": "npx prisma@5.22.0 db push",
     "db:migrate": "npx prisma@5.22.0 migrate deploy",

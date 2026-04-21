@@ -4,7 +4,7 @@ services:
     env: node
     region: singapore
     plan: starter
-    buildCommand: npm install --production=false && cd client && npm install && npm run build && cd .. && npx prisma generate && npx prisma db push
+    buildCommand: npm install --production=false && npm --prefix client install && npm --prefix client run build && npx prisma@5.22.0 generate && npx prisma@5.22.0 db push
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -35,7 +35,7 @@ services:
     env: node
     region: singapore
     plan: starter
-    buildCommand: npm install --production=false && npm --prefix media-worker install --production=false && npx prisma generate
+    buildCommand: npm install --production=false && npm --prefix media-worker install --production=false && npx prisma@5.22.0 generate
     startCommand: npm --prefix media-worker run start
     envVars:
       - key: NODE_ENV
