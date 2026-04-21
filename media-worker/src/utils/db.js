@@ -1,42 +1,70 @@
-/**
- * Media Worker — 数据库写入工具
- * 通过 DIRECTORY 路径共享 SQLite（开发）或连接 PostgreSQL（生产）
- */
-
+import fs from 'fs';
+import path from 'path';
 import pg from 'pg';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 
-// 从 .env.local 读取（Worker 专用环境变量）
-try {
-  const envPath = join(__dirname, '../../../.env');
-  readFileSync(envPath, 'utf8')
-    .split('\n')
-    .filter((l) => l.includes('='))
-    .forEach((l) => {
-      const [k, v] = l.split('=');
-      if (k && !process.env[k]) process.env[k] = v.trim();
-    });
-} catch { /* .env.local 可能不存在 */ }
+function loadDotEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
 
-export const MEDIA_ROOT = process.env.MEDIA_ROOT || '/nas/media';
-export const DATABASE_URL = process.env.DATABASE_URL ||
-  `postgres://framereview:changeme@localhost:5432/framereview`;
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+
+    const index = trimmed.indexOf('=');
+    const key = trimmed.slice(0, index).trim();
+    const rawValue = trimmed.slice(index + 1).trim();
+    const value = rawValue.replace(/^['"]|['"]$/g, '');
+
+    if (key && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadDotEnvFile(path.join(PROJECT_ROOT, '.env'));
+loadDotEnvFile(path.join(PROJECT_ROOT, '.env.local'));
+
+function resolveRootPath(targetPath, fallback) {
+  const effective = targetPath || fallback;
+  if (path.isAbsolute(effective)) return effective;
+  return path.resolve(PROJECT_ROOT, effective);
+}
+
+export const MEDIA_ROOT = resolveRootPath(process.env.UPLOAD_DIR, './uploads');
+export const PREVIEWS_ROOT = path.join(MEDIA_ROOT, 'previews');
+export const DATABASE_URL =
+  process.env.DATABASE_URL || 'postgres://framereview:changeme@localhost:5432/framereview';
 
 export const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
+export function resolveMediaPath(filePath) {
+  if (path.isAbsolute(filePath)) return filePath;
+  return path.join(MEDIA_ROOT, filePath);
+}
+
+export function getPreviewDir(assetVersionId) {
+  return path.join(PREVIEWS_ROOT, assetVersionId);
+}
+
+export function getPreviewPublicUrl(assetVersionId, filename) {
+  return `/uploads/previews/${assetVersionId}/${filename}`;
+}
+
 export async function updateAssetStatus(assetId, status) {
-  await pool.query('UPDATE assets SET status = $1 WHERE id = $2', [status, assetId]);
+  await pool.query('UPDATE assets SET status = $1, updated_at = NOW() WHERE id = $2', [status, assetId]);
 }
 
 export async function updatePreviewMetadata(assetVersionId, metadata) {
   await pool.query(
     `INSERT INTO asset_previews (asset_version_id, metadata, created_at, updated_at)
      VALUES ($1, $2, NOW(), NOW())
-     ON CONFLICT (asset_version_id) DO UPDATE SET metadata = EXCLUDED.metadata`,
+     ON CONFLICT (asset_version_id)
+     DO UPDATE SET metadata = EXCLUDED.metadata, updated_at = NOW()`,
     [assetVersionId, JSON.stringify(metadata)]
   );
 }
@@ -45,7 +73,8 @@ export async function updatePreviewPoster(assetVersionId, posterUrl) {
   await pool.query(
     `INSERT INTO asset_previews (asset_version_id, poster_url, created_at, updated_at)
      VALUES ($1, $2, NOW(), NOW())
-     ON CONFLICT (asset_version_id) DO UPDATE SET poster_url = EXCLUDED.poster_url`,
+     ON CONFLICT (asset_version_id)
+     DO UPDATE SET poster_url = EXCLUDED.poster_url, updated_at = NOW()`,
     [assetVersionId, posterUrl]
   );
 }
@@ -54,7 +83,8 @@ export async function updatePreviewSprite(assetVersionId, spriteUrl, keyframes) 
   await pool.query(
     `INSERT INTO asset_previews (asset_version_id, sprite_url, keyframes, created_at, updated_at)
      VALUES ($1, $2, $3, NOW(), NOW())
-     ON CONFLICT (asset_version_id) DO UPDATE SET sprite_url = EXCLUDED.sprite_url, keyframes = EXCLUDED.keyframes`,
+     ON CONFLICT (asset_version_id)
+     DO UPDATE SET sprite_url = EXCLUDED.sprite_url, keyframes = EXCLUDED.keyframes, updated_at = NOW()`,
     [assetVersionId, spriteUrl, JSON.stringify(keyframes)]
   );
 }
@@ -63,7 +93,8 @@ export async function updatePreviewWaveform(assetVersionId, waveformUrl) {
   await pool.query(
     `INSERT INTO asset_previews (asset_version_id, waveform_url, created_at, updated_at)
      VALUES ($1, $2, NOW(), NOW())
-     ON CONFLICT (asset_version_id) DO UPDATE SET waveform_url = EXCLUDED.waveform_url`,
+     ON CONFLICT (asset_version_id)
+     DO UPDATE SET waveform_url = EXCLUDED.waveform_url, updated_at = NOW()`,
     [assetVersionId, waveformUrl]
   );
 }

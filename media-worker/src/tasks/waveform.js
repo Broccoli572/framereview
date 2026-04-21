@@ -1,40 +1,35 @@
-/**
- * 波形图任务 — 从音频/视频提取波形数据
- * 输出：waveform.json（归一化振幅数组）
- */
-
-import { execSync } from 'child_process';
-import { join } from 'path';
-import { readFileSync, writeFileSync } from 'fs';
+import fs from 'fs';
+import { execFileSync } from 'child_process';
+import { getPreviewDir, getPreviewPublicUrl, resolveMediaPath, updatePreviewWaveform } from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { MEDIA_ROOT } from '../utils/db.js';
 
 export async function processWaveform({ assetVersionId, filePath }) {
-  const fullPath = join(MEDIA_ROOT, filePath);
-  const outDir = join(MEDIA_ROOT, 'previews', assetVersionId);
-  const jsonFile = join(outDir, 'waveform.json');
+  const fullPath = resolveMediaPath(filePath);
+  const outDir = getPreviewDir(assetVersionId);
+  const jsonFile = `${outDir}/waveform.json`;
+  fs.mkdirSync(outDir, { recursive: true });
 
-  logger.info(`[waveform] 生成波形: ${fullPath}`);
+  logger.info('Generating waveform', { assetVersionId, filePath: fullPath });
 
-  // 提取 PCM 数据并采样到 200 个数据点
-  execSync(
-    `ffmpeg -y -i "${fullPath}" -af "aformat=channel_layouts=mono,compand=gain=-6,asetnsamples=200" -f f32le -`,
-    { timeout: 60_000 }
-  ).toString();
-
-  // 解析 PCM 数据并归一化
-  const rawPcm = execSync(
-    `ffmpeg -y -i "${fullPath}" -af "aformat=channel_layouts=mono,aresample=1000,asetnsamples=200" -f f32le - 2>/dev/null`,
-    { timeout: 60_000 }
+  const rawPcm = execFileSync(
+    'ffmpeg',
+    ['-y', '-i', fullPath, '-af', 'aformat=channel_layouts=mono,aresample=1000', '-f', 'f32le', '-'],
+    { timeout: 60000, stdio: ['ignore', 'pipe', 'ignore'] }
   );
 
-  const samples = new Float32Array(rawPcm.buffer);
-  const normalized = Array.from(samples).map((v) => parseFloat((Math.abs(v)).toFixed(4)));
+  const samples = new Float32Array(rawPcm.buffer, rawPcm.byteOffset, Math.floor(rawPcm.byteLength / 4));
+  const step = Math.max(Math.floor(samples.length / 200), 1);
+  const normalized = [];
 
-  writeFileSync(jsonFile, JSON.stringify({ samples: normalized }));
+  for (let index = 0; index < samples.length; index += step) {
+    normalized.push(Number(Math.abs(samples[index]).toFixed(4)));
+    if (normalized.length >= 200) break;
+  }
 
-  await updatePreviewWaveform(assetVersionId, `/storage/previews/${assetVersionId}/waveform.json`);
+  fs.writeFileSync(jsonFile, JSON.stringify({ samples: normalized }));
 
-  logger.success(`[waveform] 波形生成完成`);
-  return jsonFile;
+  const waveformUrl = getPreviewPublicUrl(assetVersionId, 'waveform.json');
+  await updatePreviewWaveform(assetVersionId, waveformUrl);
+  logger.success('Waveform generated', { assetVersionId, waveformUrl });
+  return waveformUrl;
 }

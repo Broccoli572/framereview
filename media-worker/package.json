@@ -1,7 +1,7 @@
 {
   "name": "framereview-media-worker",
   "version": "1.0.0",
-  "description": "FrameReview V2 — 媒体处理 Worker（ffprobe / ffmpeg 任务消费）",
+  "description": "FrameReview V2 media worker for ffprobe and ffmpeg jobs",
   "type": "module",
   "main": "src/index.js",
   "scripts": {

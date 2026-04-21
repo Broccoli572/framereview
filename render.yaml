@@ -35,8 +35,8 @@ services:
     env: node
     region: singapore
     plan: starter
-    buildCommand: npm install --production=false && npx prisma generate
-    startCommand: node media-worker/index.js
+    buildCommand: npm install --production=false && npm --prefix media-worker install --production=false && npx prisma generate
+    startCommand: npm --prefix media-worker run start
     envVars:
       - key: NODE_ENV
         value: production

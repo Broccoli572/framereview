@@ -6,6 +6,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
+import { enqueueAssetProcessing } from '../lib/mediaQueue.js';
 
 const router = Router();
 
@@ -43,6 +44,63 @@ function getAssetType(mimeType) {
   if (mimeType === 'application/pdf') return 'pdf';
   if (mimeType?.includes('document') || mimeType?.includes('spreadsheet') || mimeType?.includes('presentation')) return 'document';
   return 'other';
+}
+
+async function queueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type }) {
+  try {
+    await enqueueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type });
+    await prisma.asset.update({
+      where: { id: assetId },
+      data: { status: 'processing' },
+    });
+    return true;
+  } catch (error) {
+    console.error('[Asset] Failed to enqueue processing job:', error);
+    await prisma.asset.update({
+      where: { id: assetId },
+      data: { status: 'failed' },
+    });
+    return false;
+  }
+}
+
+function resolvePublicUploadPath(fileUrl) {
+  if (!fileUrl) return null;
+  const relativePath = fileUrl.replace(/^\/uploads[\\/]?/, '');
+  return path.resolve(UPLOAD_DIR, relativePath);
+}
+
+async function attachThumbnailUrls(assets) {
+  const currentVersionIds = assets
+    .map((asset) => asset.currentVersionId)
+    .filter(Boolean);
+
+  if (!currentVersionIds.length) {
+    return assets.map((asset) => ({ ...asset, thumbnailUrl: null }));
+  }
+
+  const previews = await prisma.assetPreview.findMany({
+    where: {
+      assetVersionId: {
+        in: currentVersionIds,
+      },
+    },
+    select: {
+      assetVersionId: true,
+      posterUrl: true,
+    },
+  });
+
+  const previewByVersionId = new Map(
+    previews.map((preview) => [preview.assetVersionId, preview.posterUrl || null])
+  );
+
+  return assets.map((asset) => ({
+    ...asset,
+    thumbnailUrl: asset.currentVersionId
+      ? (previewByVersionId.get(asset.currentVersionId) || null)
+      : null,
+  }));
 }
 
 async function requireAssetAccess(assetId, userId) {
@@ -193,10 +251,10 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
     fs.renameSync(chunkPath, finalPath);
 
     // 更新数据库
-    const updated = await prisma.asset.update({
+    await prisma.asset.update({
       where: { id: uploadId },
       data: {
-        status: 'ready',
+        status: 'processing',
         storagePath: finalPath,
         sha256,
         name: data.name || asset.name,
@@ -225,7 +283,22 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
       data: { currentVersionId: version.id },
     });
 
-    res.json({ asset: updated, version });
+    const processingQueued = await queueAssetProcessing({
+      assetId: uploadId,
+      assetVersionId: version.id,
+      filePath: finalPath,
+      mimeType: asset.mimeType,
+      type: asset.type,
+    });
+
+    const processedAsset = await prisma.asset.findUnique({
+      where: { id: uploadId },
+      include: {
+        creator: { select: { id: true, name: true, avatar: true } },
+      },
+    });
+
+    res.json({ asset: processedAsset, version, processingQueued });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: 'Validation failed', errors: err.errors });
@@ -274,7 +347,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
         sizeBytes: BigInt(req.file.size),
         sha256,
         type: getAssetType(req.file.mimetype),
-        status: 'ready',
+        status: 'processing',
         storagePath: finalPath,
         createdBy: req.userId,
       },
@@ -296,7 +369,19 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       data: { currentVersionId: version.id },
     });
 
-    res.status(201).json({ asset, version });
+    const processingQueued = await queueAssetProcessing({
+      assetId: asset.id,
+      assetVersionId: version.id,
+      filePath: finalPath,
+      mimeType: asset.mimeType,
+      type: asset.type,
+    });
+
+    const processedAsset = await prisma.asset.findUnique({
+      where: { id: asset.id },
+    });
+
+    res.status(201).json({ asset: processedAsset, version, processingQueued });
   } catch (err) {
     next(err);
   }
@@ -363,7 +448,9 @@ router.get('/', authenticate, async (req, res, next) => {
       prisma.asset.count({ where }),
     ]);
 
-    res.json({ data: assets, total, page: Number(page), per_page: Number(per_page) });
+    const assetsWithThumbnails = await attachThumbnailUrls(assets);
+
+    res.json({ data: assetsWithThumbnails, total, page: Number(page), per_page: Number(per_page) });
   } catch (err) {
     next(err);
   }
@@ -465,25 +552,28 @@ router.post('/:id/process', authenticate, async (req, res, next) => {
     const asset = await requireAssetAccess(req.params.id, req.userId);
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
 
-    await prisma.asset.update({
-      where: { id: asset.id },
-      data: { status: 'processing' },
+    const version = await prisma.assetVersion.findFirst({
+      where: { assetId: asset.id },
+      orderBy: { versionNumber: 'desc' },
     });
 
-    // TODO: 入队 media-worker 任务（ffmpeg 转码、缩略图生成、波形提取等）
-    // 临时方案：直接标记为 ready
-    setTimeout(async () => {
-      try {
-        await prisma.asset.update({
-          where: { id: asset.id },
-          data: { status: 'ready' },
-        });
-      } catch (e) {
-        console.error('[Asset] Process timeout error:', e);
-      }
-    }, 1000);
+    if (!version?.filePath) {
+      return res.status(400).json({ message: 'No asset version available for processing' });
+    }
 
-    res.json({ message: 'Processing queued' });
+    const processingQueued = await queueAssetProcessing({
+      assetId: asset.id,
+      assetVersionId: version.id,
+      filePath: version.filePath,
+      mimeType: asset.mimeType,
+      type: asset.type,
+    });
+
+    if (!processingQueued) {
+      return res.status(503).json({ message: 'Processing queue unavailable' });
+    }
+
+    res.json({ message: 'Processing queued', processingQueued: true });
   } catch (err) {
     next(err);
   }
@@ -553,7 +643,7 @@ router.get('/:id/thumbnail', authenticate, async (req, res, next) => {
       return res.status(404).json({ message: 'Thumbnail not available' });
     }
 
-    const thumbnailPath = version.preview.posterUrl;
+    const thumbnailPath = resolvePublicUploadPath(version.preview.posterUrl);
     if (!fs.existsSync(thumbnailPath)) {
       return res.status(404).json({ message: 'Thumbnail file not found' });
     }

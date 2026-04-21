@@ -1,52 +1,51 @@
-/**
- * ffprobe 任务 — 提取视频元数据
- * 输出：时长、分辨率、编码、帧率、音频流等信息
- */
-
-import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { execFileSync } from 'child_process';
+import { resolveMediaPath, updatePreviewMetadata } from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { MEDIA_ROOT, DATABASE_URL } from '../utils/db.js';
+
+function parseFrameRate(value) {
+  if (!value || typeof value !== 'string' || !value.includes('/')) return null;
+  const [num, den] = value.split('/').map(Number);
+  if (!num || !den) return null;
+  return Number((num / den).toFixed(3));
+}
 
 export async function processVideoMetadata({ assetVersionId, filePath }) {
-  const fullPath = join(MEDIA_ROOT, filePath);
-  logger.info(`[ffprobe] 提取元数据: ${fullPath}`);
+  const fullPath = resolveMediaPath(filePath);
+  logger.info('Running ffprobe', { assetVersionId, filePath: fullPath });
 
-  const json = execSync(
-    `ffprobe -v quiet -print_format json -show_format -show_streams "${fullPath}"`,
-    { timeout: 60_000 }
+  const json = execFileSync(
+    'ffprobe',
+    ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', fullPath],
+    { timeout: 60000 }
   ).toString();
 
   const data = JSON.parse(json);
-  const videoStream = data.streams.find((s) => s.codec_type === 'video');
-  const audioStream = data.streams.find((s) => s.codec_type === 'audio');
+  const videoStream = data.streams?.find((stream) => stream.codec_type === 'video');
+  const audioStream = data.streams?.find((stream) => stream.codec_type === 'audio');
 
   const metadata = {
-    duration: parseFloat(data.format.duration || 0),
-    size_bytes: parseInt(data.format.size || 0),
-    bitrate: parseInt(data.format.bit_rate || 0),
+    duration: Number.parseFloat(data.format?.duration || '0'),
+    sizeBytes: Number.parseInt(data.format?.size || '0', 10),
+    bitrate: Number.parseInt(data.format?.bit_rate || '0', 10),
     video: videoStream
       ? {
-          codec: videoStream.codec_name,
-          width: videoStream.width,
-          height: videoStream.height,
-          fps: eval(videoStream.r_frame_rate) || null, // ffprobe fps 格式 "30000/1001"
-          profile: videoStream.profile,
+          codec: videoStream.codec_name || null,
+          width: videoStream.width || null,
+          height: videoStream.height || null,
+          fps: parseFrameRate(videoStream.r_frame_rate),
+          profile: videoStream.profile || null,
         }
       : null,
     audio: audioStream
       ? {
-          codec: audioStream.codec_name,
-          channels: audioStream.channels,
-          sample_rate: parseInt(audioStream.sample_rate || 0),
+          codec: audioStream.codec_name || null,
+          channels: audioStream.channels || null,
+          sampleRate: Number.parseInt(audioStream.sample_rate || '0', 10) || null,
         }
       : null,
   };
 
-  // 写回数据库 asset_previews.metadata
   await updatePreviewMetadata(assetVersionId, metadata);
-
-  logger.success(`[ffprobe] 元数据提取完成: ${metadata.duration}s / ${metadata.video?.width}x${metadata.video?.height}`);
+  logger.success('Metadata extracted', { assetVersionId, duration: metadata.duration });
   return metadata;
 }

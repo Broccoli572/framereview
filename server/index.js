@@ -91,8 +91,10 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.use('/api/auth', authRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/workspaces/:workspaceId/projects', projectRoutes);
-// Project-scoped sub-resources (must be BEFORE generic /api/projects/:id)
+// Project-scoped asset list/upload routes and asset-global routes share the same router.
+// Keep the project mount before generic /api/projects/:id to avoid greedy matching.
 app.use('/api/projects/:projectId/assets', assetRoutes);
+app.use('/api/assets', assetRoutes);
 app.use('/api/projects/:projectId/folders', folderRoutes);
 // Generic project routes (/:id would otherwise greedily match sub-resource paths)
 app.use('/api/projects', projectDirectRoutes);
@@ -105,32 +107,6 @@ app.use('/api/admin', adminRoutes);
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
-});
-
-// 调试端点（仅开发阶段，后续删除）
-app.get('/api/debug/assets', async (req, res) => {
-  try {
-    const { project_id } = req.query;
-    if (!project_id) {
-      // 返回所有 assets 的摘要
-      const allAssets = await prisma.asset.findMany({
-        select: { id: true, name: true, projectId: true, status: true, createdAt: true, deletedAt: true },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
-      });
-      return res.json({ count: allAssets.length, assets: allAssets });
-    }
-    // 返回特定项目的 assets
-    const projectAssets = await prisma.asset.findMany({
-      where: { projectId: project_id },
-      select: { id: true, name: true, status: true, type: true, sizeBytes: true, folderId: true, deletedAt: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    res.json({ projectId: project_id, count: projectAssets.length, assets: projectAssets });
-  } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
-  }
 });
 
 // ── Serve React SPA (production) ────────────────────────

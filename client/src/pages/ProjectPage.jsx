@@ -1,10 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Grid, List, SortAsc, SortDesc, Upload, Filter, Film,
-  ChevronRight, ChevronDown, FolderPlus, MoreHorizontal, Trash2, Play
+  Grid,
+  List,
+  Upload,
+  Film,
+  ChevronRight,
+  ChevronDown,
+  FolderPlus,
+  Trash2,
+  Play,
 } from 'lucide-react';
+import clsx from 'clsx';
 import client from '../api/client';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -13,55 +21,66 @@ import EmptyState from '../components/ui/EmptyState';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
-import Dropdown from '../components/ui/Dropdown';
 import Table, { Head, Body, Row, HeaderCell, Cell } from '../components/ui/Table';
 import { formatBytes, formatDuration, formatRelativeTime } from '../lib/utils';
-import clsx from 'clsx';
 
-function FolderTree({ folders, selectedId, onSelect, onCreateFolder, depth = 0 }) {
+function FolderTreeNode({ folder, selectedId, onSelect, depth }) {
+  const [expanded, setExpanded] = useState(depth < 1);
+  const hasChildren = folder.children?.length > 0;
+
+  return (
+    <div>
+      <div
+        className={clsx(
+          'flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors',
+          selectedId === folder.id
+            ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300'
+            : 'text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800'
+        )}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={() => {
+          onSelect(folder.id);
+          if (hasChildren) {
+            setExpanded((current) => !current);
+          }
+        }}
+      >
+        {hasChildren ? (
+          expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+        ) : (
+          <span className="w-3.5" />
+        )}
+        <FolderPlus size={14} className="text-surface-400" />
+        <span className="truncate">{folder.name}</span>
+        {folder.assets_count !== undefined && (
+          <span className="ml-auto text-xs text-surface-400">{folder.assets_count}</span>
+        )}
+      </div>
+
+      {hasChildren && expanded && (
+        <FolderTree
+          folders={folder.children}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          depth={depth + 1}
+        />
+      )}
+    </div>
+  );
+}
+
+function FolderTree({ folders, selectedId, onSelect, depth = 0 }) {
   return (
     <div className={clsx(depth > 0 && 'ml-4 border-l border-surface-200 dark:border-surface-800')}>
-      {folders.map((folder) => {
-        const hasChildren = folder.children?.length > 0;
-        const [expanded, setExpanded] = useState(depth < 1);
-        return (
-          <div key={folder.id}>
-            <div
-              className={clsx(
-                'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm cursor-pointer transition-colors',
-                selectedId === folder.id
-                  ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300'
-                  : 'text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800'
-              )}
-              style={{ paddingLeft: `${depth * 16 + 8}px` }}
-              onClick={() => {
-                onSelect(folder.id);
-                setExpanded(!expanded);
-              }}
-            >
-              {hasChildren ? (
-                expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
-              ) : (
-                <span className="w-3.5" />
-              )}
-              <FolderPlus size={14} className="text-surface-400" />
-              <span className="truncate">{folder.name}</span>
-              {folder.assets_count !== undefined && (
-                <span className="ml-auto text-xs text-surface-400">{folder.assets_count}</span>
-              )}
-            </div>
-            {hasChildren && expanded && (
-              <FolderTree
-                folders={folder.children}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onCreateFolder={onCreateFolder}
-                depth={depth + 1}
-              />
-            )}
-          </div>
-        );
-      })}
+      {folders.map((folder) => (
+        <FolderTreeNode
+          key={folder.id}
+          folder={folder}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          depth={depth}
+        />
+      ))}
     </div>
   );
 }
@@ -96,32 +115,25 @@ export default function ProjectPage() {
     enabled: !!projectId,
   });
 
-  const { data: assets, isLoading: assetsLoading, error: assetsError } = useQuery({
+  const {
+    data: assets,
+    isLoading: assetsLoading,
+    error: assetsError,
+  } = useQuery({
     queryKey: ['project-assets', projectId, selectedFolder, filterType, sortBy, sortDir],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedFolder) params.set('folder_id', selectedFolder);
       if (filterType !== 'all') params.set('type', filterType);
-      // Map frontend sort key to backend sort key
-      const sortParam = sortBy === 'size' ? 'size_bytes' : sortBy;
-      params.set('sort', sortParam);
+      params.set('sort', sortBy === 'size' ? 'size_bytes' : sortBy);
       params.set('order', sortDir);
-      console.log('[ProjectPage] Fetching assets:', `/projects/${projectId}/assets?${params}`);
+
       const res = await client.get(`/projects/${projectId}/assets?${params}`);
-      console.log('[ProjectPage] Assets API response:', JSON.stringify(res.data).slice(0, 500));
       const responseData = res.data?.data || res.data;
-      // 后端返回 { data: [...], total, page, per_page }
-      const result = Array.isArray(responseData) ? responseData : (responseData?.data || []);
-      console.log('[ProjectPage] Parsed assets count:', result.length);
-      return result;
+      return Array.isArray(responseData) ? responseData : (responseData?.data || []);
     },
     enabled: !!projectId,
   });
-
-  // Debug: log error if any
-  if (assetsError) {
-    console.error('[ProjectPage] Assets query error:', assetsError);
-  }
 
   const createFolderMutation = useMutation({
     mutationFn: (name) => client.post(`/projects/${projectId}/folders`, { name, parent_id: selectedFolder }),
@@ -139,50 +151,57 @@ export default function ProjectPage() {
     },
   });
 
-  // Map frontend sort keys to backend query params AND display field names
   const sortConfig = useMemo(() => ({
-    updated_at: { param: 'updated_at', field: 'updatedAt' },
-    created_at: { param: 'created_at', field: 'createdAt' },
-    name: { param: 'name', field: 'name' },
-    size: { param: 'size_bytes', field: 'sizeBytes' },
+    updated_at: { field: 'updatedAt' },
+    created_at: { field: 'createdAt' },
+    name: { field: 'name' },
+    size: { field: 'sizeBytes' },
   }), []);
 
   const sortedAssets = useMemo(() => {
     if (!assets) return [];
+
     const cfg = sortConfig[sortBy] || { field: sortBy };
     return [...assets].sort((a, b) => {
       let va = a[cfg.field] || '';
       let vb = b[cfg.field] || '';
+
       if (typeof va === 'string') va = va.toLowerCase();
       if (typeof vb === 'string') vb = vb.toLowerCase();
-      if (sortDir === 'asc') return va > vb ? 1 : -1;
+
+      if (sortDir === 'asc') {
+        return va > vb ? 1 : -1;
+      }
+
       return va < vb ? 1 : -1;
     });
   }, [assets, sortBy, sortDir, sortConfig]);
 
   const filteredAssets = useMemo(() => {
-      if (filterType === 'all') return sortedAssets;
-    return sortedAssets.filter((a) => {
-      const t = a.type || a.mimeType || '';
-      if (filterType === 'video') return t.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv'].some(ext => (a.name || '').endsWith(ext));
-      if (filterType === 'image') return t.startsWith('image/');
-      if (filterType === 'audio') return t.startsWith('audio/');
+    if (filterType === 'all') return sortedAssets;
+
+    return sortedAssets.filter((asset) => {
+      const type = asset.type || asset.mimeType || '';
+      if (filterType === 'video') {
+        return (
+          type.startsWith('video/') ||
+          ['mp4', 'mov', 'avi', 'mkv'].some((ext) => (asset.name || '').toLowerCase().endsWith(ext))
+        );
+      }
+      if (filterType === 'image') return type.startsWith('image/');
+      if (filterType === 'audio') return type.startsWith('audio/');
       return true;
     });
   }, [sortedAssets, filterType]);
 
   const isLoading = projLoading || assetsLoading;
 
-  // Debug info (visible in console)
-  console.log('[ProjectPage] Render state:', { projectId, assetsCount: assets?.length, isLoading, hasError: !!assetsError });
-
   return (
-    <div className="h-full flex">
-      {/* Left panel - Folder tree */}
-      <div className="w-60 flex-shrink-0 border-r border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 overflow-y-auto">
+    <div className="flex h-full">
+      <div className="w-60 flex-shrink-0 overflow-y-auto border-r border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
         <div className="p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">文件夹</h3>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">Folders</h3>
             <Button
               variant="ghost"
               size="sm"
@@ -194,10 +213,9 @@ export default function ProjectPage() {
             </Button>
           </div>
 
-          {/* Root folder */}
           <div
             className={clsx(
-              'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm cursor-pointer transition-colors',
+              'flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors',
               !selectedFolder
                 ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300'
                 : 'text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800'
@@ -205,11 +223,13 @@ export default function ProjectPage() {
             onClick={() => setSelectedFolder(null)}
           >
             <FolderPlus size={14} />
-            <span>全部文件</span>
+            <span>All files</span>
           </div>
 
           {foldersLoading ? (
-            <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+            <div className="flex justify-center py-4">
+              <Spinner size="sm" />
+            </div>
           ) : (
             <FolderTree
               folders={folders || []}
@@ -220,32 +240,28 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Right panel - Assets */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Toolbar */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-surface-200 bg-white px-4 py-3 dark:border-surface-800 dark:bg-surface-900">
           <div className="flex items-center gap-1 text-sm text-surface-500 dark:text-surface-400">
-            <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">工作台</Link>
+            <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">Workspace</Link>
             <ChevronRight size={14} />
-            <span className="text-surface-900 dark:text-surface-100 font-medium truncate max-w-[200px]">
-              {project?.name || '项目'}
+            <span className="max-w-[200px] truncate font-medium text-surface-900 dark:text-surface-100">
+              {project?.name || 'Project'}
             </span>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Filter */}
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="h-8 rounded-lg border border-surface-300 bg-white px-2 text-xs dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
             >
-              <option value="all">全部类型</option>
-              <option value="video">视频</option>
-              <option value="image">图片</option>
-              <option value="audio">音频</option>
+              <option value="all">All types</option>
+              <option value="video">Video</option>
+              <option value="image">Image</option>
+              <option value="audio">Audio</option>
             </select>
 
-            {/* Sort */}
             <select
               value={`${sortBy}-${sortDir}`}
               onChange={(e) => {
@@ -255,20 +271,19 @@ export default function ProjectPage() {
               }}
               className="h-8 rounded-lg border border-surface-300 bg-white px-2 text-xs dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
             >
-              <option value="updated_at-desc">最近更新</option>
-              <option value="updated_at-asc">最早更新</option>
-              <option value="name-asc">名称 A-Z</option>
-              <option value="name-desc">名称 Z-A</option>
-              <option value="size-desc">大小（大→小）</option>
-              <option value="size-asc">大小（小→大）</option>
+              <option value="updated_at-desc">Recently updated</option>
+              <option value="updated_at-asc">Oldest updated</option>
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+              <option value="size-desc">Largest first</option>
+              <option value="size-asc">Smallest first</option>
             </select>
 
-            {/* View mode */}
             <div className="flex rounded-lg border border-surface-200 dark:border-surface-700">
               <button
                 onClick={() => setViewMode('grid')}
                 className={clsx(
-                  'p-1.5 rounded-l-lg transition-colors',
+                  'rounded-l-lg p-1.5 transition-colors',
                   viewMode === 'grid'
                     ? 'bg-surface-100 text-surface-700 dark:bg-surface-800 dark:text-surface-200'
                     : 'text-surface-400 hover:text-surface-600'
@@ -279,7 +294,7 @@ export default function ProjectPage() {
               <button
                 onClick={() => setViewMode('list')}
                 className={clsx(
-                  'p-1.5 rounded-r-lg transition-colors',
+                  'rounded-r-lg p-1.5 transition-colors',
                   viewMode === 'list'
                     ? 'bg-surface-100 text-surface-700 dark:bg-surface-800 dark:text-surface-200'
                     : 'text-surface-400 hover:text-surface-600'
@@ -294,39 +309,43 @@ export default function ProjectPage() {
               leftIcon={Upload}
               onClick={() => navigate(`/project/${projectId}/upload`)}
             >
-              上传
+              Upload
             </Button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Spinner size="lg" text="加载资源..." />
+            <div className="flex h-full items-center justify-center">
+              <Spinner size="lg" text="Loading assets..." />
             </div>
+          ) : assetsError ? (
+            <EmptyState
+              icon={Film}
+              title="Could not load assets"
+              description="Please try again in a moment."
+            />
           ) : filteredAssets.length === 0 ? (
             <EmptyState
               icon={Film}
-              title="还没有资源"
-              description="上传文件到这个项目中"
-              action={
+              title="No assets yet"
+              description="Upload files into this project to get started."
+              action={(
                 <Button leftIcon={Upload} onClick={() => navigate(`/project/${projectId}/upload`)}>
-                  上传文件
+                  Upload files
                 </Button>
-              }
+              )}
             />
           ) : viewMode === 'grid' ? (
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filteredAssets.map((asset) => (
                 <div key={asset.id} className="group relative">
                   <Card
                     hover
-                    className="p-0 overflow-hidden"
+                    className="overflow-hidden p-0"
                     onClick={() => navigate(`/review/${asset.id}`)}
                   >
-                    {/* Thumbnail */}
-                    <div className="aspect-video bg-surface-100 dark:bg-surface-800 relative">
+                    <div className="relative aspect-video bg-surface-100 dark:bg-surface-800">
                       {asset.thumbnailUrl ? (
                         <img
                           src={asset.thumbnailUrl}
@@ -339,20 +358,20 @@ export default function ProjectPage() {
                           <Film size={24} className="text-surface-400" />
                         </div>
                       )}
-                      {/* Play overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 group-hover:bg-black/30 group-hover:opacity-100 transition-all">
+
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
                         <Play size={28} className="text-white" />
                       </div>
-                      {/* Duration badge */}
+
                       {asset.duration && (
                         <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-white">
                           {formatDuration(asset.duration)}
                         </span>
                       )}
                     </div>
-                    {/* Info */}
+
                     <div className="px-2.5 py-2">
-                      <p className="text-sm font-medium text-surface-900 dark:text-surface-100 truncate">
+                      <p className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">
                         {asset.name}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-xs text-surface-500">
@@ -362,20 +381,21 @@ export default function ProjectPage() {
                             variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}
                             dot
                           >
-                            {asset.status === 'ready' ? '就绪' : asset.status === 'processing' ? '处理中' : asset.status}
+                            {asset.status}
                           </Badge>
                         )}
                       </div>
                     </div>
                   </Card>
 
-                  {/* Delete button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('确定删除此资源？')) deleteAssetMutation.mutate(asset.id);
+                      if (window.confirm('Delete this asset?')) {
+                        deleteAssetMutation.mutate(asset.id);
+                      }
                     }}
-                    className="absolute right-1.5 top-1.5 rounded-md bg-black/50 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                    className="absolute right-1.5 top-1.5 rounded-md bg-black/50 p-1 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -386,11 +406,11 @@ export default function ProjectPage() {
             <Table>
               <Head>
                 <Row>
-                  <HeaderCell>名称</HeaderCell>
-                  <HeaderCell>大小</HeaderCell>
-                  <HeaderCell>时长</HeaderCell>
-                  <HeaderCell>状态</HeaderCell>
-                  <HeaderCell>更新时间</HeaderCell>
+                  <HeaderCell>Name</HeaderCell>
+                  <HeaderCell>Size</HeaderCell>
+                  <HeaderCell>Duration</HeaderCell>
+                  <HeaderCell>Status</HeaderCell>
+                  <HeaderCell>Updated</HeaderCell>
                   <HeaderCell className="w-16" />
                 </Row>
               </Head>
@@ -403,7 +423,7 @@ export default function ProjectPage() {
                   >
                     <Cell>
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-16 flex-shrink-0 rounded bg-surface-100 dark:bg-surface-800 overflow-hidden">
+                        <div className="h-10 w-16 flex-shrink-0 overflow-hidden rounded bg-surface-100 dark:bg-surface-800">
                           {asset.thumbnailUrl ? (
                             <img src={asset.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                           ) : (
@@ -412,7 +432,7 @@ export default function ProjectPage() {
                             </div>
                           )}
                         </div>
-                        <span className="font-medium truncate">{asset.name}</span>
+                        <span className="truncate font-medium">{asset.name}</span>
                       </div>
                     </Cell>
                     <Cell>{asset.sizeBytes ? formatBytes(asset.sizeBytes) : '-'}</Cell>
@@ -422,7 +442,7 @@ export default function ProjectPage() {
                         variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}
                         dot
                       >
-                        {asset.status === 'ready' ? '就绪' : asset.status === 'processing' ? '处理中' : (asset.status || '-')}
+                        {asset.status || '-'}
                       </Badge>
                     </Cell>
                     <Cell>
@@ -432,7 +452,9 @@ export default function ProjectPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm('确定删除此资源？')) deleteAssetMutation.mutate(asset.id);
+                          if (window.confirm('Delete this asset?')) {
+                            deleteAssetMutation.mutate(asset.id);
+                          }
                         }}
                         className="text-surface-400 hover:text-red-500"
                       >
@@ -447,11 +469,13 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Create folder modal */}
       <Modal
         open={showCreateFolder}
-        onClose={() => { setShowCreateFolder(false); setNewFolderName(''); }}
-        title="新建文件夹"
+        onClose={() => {
+          setShowCreateFolder(false);
+          setNewFolderName('');
+        }}
+        title="Create folder"
         size="sm"
       >
         <form
@@ -463,17 +487,23 @@ export default function ProjectPage() {
           className="space-y-4"
         >
           <Input
-            placeholder="文件夹名称"
+            placeholder="Folder name"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             autoFocus
           />
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => { setShowCreateFolder(false); setNewFolderName(''); }}>
-              取消
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowCreateFolder(false);
+                setNewFolderName('');
+              }}
+            >
+              Cancel
             </Button>
             <Button type="submit" loading={createFolderMutation.isPending}>
-              创建
+              Create
             </Button>
           </div>
         </form>

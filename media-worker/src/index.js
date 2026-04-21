@@ -1,86 +1,112 @@
-/**
- * FrameReview V2 — Media Worker 入口
- *
- * 消费 Laravel 队列中的媒体处理任务：
- * - ffprobe 元数据提取
- * - 缩略图抽帧
- * - 雪碧图生成
- * - 波形图生成
- * - HLS 预览转码（可选）
- */
-
 import 'dotenv/config';
-import pkg from 'bullmq';
-const { Worker, Queue, Redis } = pkg;
-import { initFfprobe, processVideoMetadata } from './tasks/ffprobe.js';
+import IORedis from 'ioredis';
+import { Worker } from 'bullmq';
+import { processVideoMetadata } from './tasks/ffprobe.js';
 import { processThumbnail } from './tasks/thumbnail.js';
 import { processSprite } from './tasks/sprite.js';
 import { processWaveform } from './tasks/waveform.js';
+import { updateAssetStatus } from './utils/db.js';
 import { logger } from './utils/logger.js';
 
-const REDIS_CONFIG = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-};
+function createRedisConnection() {
+  const redisUrl = process.env.REDIS_URL;
+  const redisOptions = {
+    maxRetriesPerRequest: null,
+    retryStrategy: (times) => Math.min(times * 1000, 5000),
+  };
 
-const MEDIA_ROOT = process.env.MEDIA_ROOT || '/nas/media';
+  if (redisUrl) {
+    return new IORedis(redisUrl, redisOptions);
+  }
 
-// 建立 Redis 连接
-const connection = new Redis(Redis_CONFIG, { maxRetriesPerRequest: null });
+  return new IORedis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    ...redisOptions,
+  });
+}
 
-// 媒体处理队列
-const mediaQueue = new Queue('media-processing', { connection });
+async function processAsset(job) {
+  const { assetId, assetVersionId, filePath, type, mimeType } = job.data;
 
-// ── Worker ───────────────────────────────────────────────────
+  logger.info('Processing asset job', {
+    jobId: job.id,
+    assetId,
+    assetVersionId,
+    type,
+    mimeType,
+  });
+
+  try {
+    let metadata = null;
+
+    if (type === 'video') {
+      metadata = await processVideoMetadata({ assetVersionId, filePath });
+      await processThumbnail({ assetVersionId, filePath });
+      await processSprite({
+        assetVersionId,
+        filePath,
+        duration: metadata?.duration || 0,
+      });
+      await processWaveform({ assetVersionId, filePath });
+    } else if (type === 'audio' || mimeType?.startsWith('audio/')) {
+      await processWaveform({ assetVersionId, filePath });
+    } else if (type === 'image') {
+      await processThumbnail({ assetVersionId, filePath });
+    }
+
+    await updateAssetStatus(assetId, 'ready');
+    logger.success('Asset processing complete', { assetId, assetVersionId });
+  } catch (error) {
+    await updateAssetStatus(assetId, 'failed');
+    logger.error('Asset processing failed', {
+      assetId,
+      assetVersionId,
+      error: error.message,
+    });
+    throw error;
+  }
+}
+
+const connection = createRedisConnection();
+
+connection.on('error', (error) => {
+  logger.error('Redis connection error', {
+    error: error?.message || String(error) || 'Unknown Redis error',
+  });
+});
+
 const worker = new Worker(
   'media-processing',
   async (job) => {
-    logger.info(`[${job.id}] 开始处理任务: ${job.name}`, { data: job.data });
-
-    switch (job.name) {
-      case 'video.metadata':
-        await processVideoMetadata(job.data);
-        break;
-      case 'video.thumbnail':
-        await processThumbnail(job.data);
-        break;
-      case 'video.sprite':
-        await processSprite(job.data);
-        break;
-      case 'audio.waveform':
-        await processWaveform(job.data);
-        break;
-      default:
-        logger.warn(`[${job.id}] 未知任务类型: ${job.name}`);
+    if (job.name !== 'asset.process') {
+      logger.warn('Skipping unknown job', { jobName: job.name, jobId: job.id });
+      return;
     }
 
-    logger.info(`[${job.id}] 任务完成`);
+    await processAsset(job);
   },
   {
     connection,
-    concurrency: parseInt(process.env.MEDIA_WORKER_CONCURRENCY || '2'),
-    limiter: {
-      max: 5,
-      duration: 1000, // 每秒最多 5 个任务
-    },
+    concurrency: parseInt(process.env.MEDIA_WORKER_CONCURRENCY || '2', 10),
   }
 );
 
-// 事件监听
 worker.on('completed', (job) => {
-  logger.success(`[${job.id}] ✅ 完成`);
+  logger.success('Job completed', { jobId: job.id, jobName: job.name });
 });
 
-worker.on('failed', (job, err) => {
-  logger.error(`[${job?.id}] ❌ 失败: ${err.message}`);
-  // 最多重试 3 次，指数退避
-  if (job?.attemptsMade < 3) {
-    logger.info(`[${job.id}] 将重试（第 ${job.attemptsMade + 1} 次）...`);
-  }
+worker.on('failed', (job, error) => {
+  logger.error('Job failed', {
+    jobId: job?.id,
+    jobName: job?.name,
+    error: error.message,
+  });
 });
 
-worker.on('error', (err) => {
-  logger.error(`Worker 错误: ${err.message}`);
+worker.on('error', (error) => {
+  const message = error?.message || String(error) || 'Unknown worker error';
+  logger.error('Worker error', { error: message });
 });
 
-logger.info('🚀 Media Worker 已启动，等待任务...');
+logger.info('Media worker started');
