@@ -1,246 +1,288 @@
-import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Film, Clock, FolderOpen, MoreHorizontal, Trash2, Settings } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FolderKanban, MoreHorizontal, Plus, Settings2, Trash2 } from 'lucide-react';
 import client from '../api/client';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Spinner from '../components/ui/Spinner';
-import EmptyState from '../components/ui/EmptyState';
-import Modal from '../components/ui/Modal';
-import Input from '../components/ui/Input';
-import Textarea from '../components/ui/Textarea';
 import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
 import Dropdown from '../components/ui/Dropdown';
+import EmptyState from '../components/ui/EmptyState';
+import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
+import Skeleton from '../components/ui/Skeleton';
+import Textarea from '../components/ui/Textarea';
 import { formatRelativeTime } from '../lib/utils';
+
+function normalizeProject(project, workspace) {
+  return {
+    ...project,
+    assetCount: Number(project?._count?.assets ?? project?.assets_count ?? 0),
+    memberCount: Number(project?._count?.members ?? project?.member_count ?? 0),
+    folderCount: Number(project?._count?.folders ?? project?.folder_count ?? 0),
+    updatedLabel: formatRelativeTime(project?.updatedAt || project?.updated_at || project?.createdAt || project?.created_at),
+    workspaceId: workspace?.id,
+  };
+}
+
+function WorkspaceSkeleton() {
+  return (
+    <div className="mx-auto max-w-7xl space-y-8">
+      <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
+        <div className="space-y-4">
+          <Skeleton className="h-4 w-20 rounded-lg" />
+          <Skeleton className="h-10 w-64 rounded-lg" />
+          <Skeleton className="h-4 w-3/4 rounded-lg" />
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-32 rounded-xl" />
+            <Skeleton className="h-10 w-28 rounded-xl" />
+          </div>
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-72 w-full rounded-[24px]" />
+        ))}
+      </section>
+    </div>
+  );
+}
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams();
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '' });
-  const [formErrors, setFormErrors] = useState({});
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '' });
+  const [formError, setFormError] = useState('');
 
-  const { data: workspace, isLoading: wsLoading } = useQuery({
+  const workspaceQuery = useQuery({
     queryKey: ['workspace', workspaceId],
     queryFn: async () => {
-      const res = await client.get(`/workspaces/${workspaceId}`);
-      return res.data?.data || res.data;
+      const response = await client.get(`/workspaces/${workspaceId}`);
+      return response.data?.data || response.data || null;
     },
-    enabled: !!workspaceId,
+    enabled: Boolean(workspaceId),
   });
 
-  const { data: projects, isLoading: projLoading } = useQuery({
+  const projectsQuery = useQuery({
     queryKey: ['workspace-projects', workspaceId],
     queryFn: async () => {
-      const res = await client.get(`/workspaces/${workspaceId}/projects`);
-      return res.data?.data || res.data || [];
+      const response = await client.get(`/workspaces/${workspaceId}/projects`);
+      const payload = response.data?.data || response.data || [];
+      return Array.isArray(payload) ? payload : payload.data || [];
     },
-    enabled: !!workspaceId,
+    enabled: Boolean(workspaceId),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data) => client.post(`/workspaces/${workspaceId}/projects`, data),
+  const createProjectMutation = useMutation({
+    mutationFn: () => client.post(`/workspaces/${workspaceId}/projects`, form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workspace-projects', workspaceId] });
-      setShowCreate(false);
+      setShowCreateProject(false);
       setForm({ name: '', description: '' });
-      setFormErrors({});
+      setFormError('');
     },
-    onError: (err) => {
-      const errors = err.response?.data?.errors || {};
-      setFormErrors(errors.name ? { name: errors.name[0] } : { general: '创建失败' });
+    onError: (error) => {
+      setFormError(error.response?.data?.message || '创建项目失败，请稍后再试。');
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (projectId) => client.delete(`/workspaces/${workspaceId}/projects/${projectId}`),
+  const deleteProjectMutation = useMutation({
+    mutationFn: (id) => client.delete(`/workspaces/${workspaceId}/projects/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workspace-projects', workspaceId] });
     },
   });
 
-  const handleCreate = (e) => {
-    e.preventDefault();
-    const errors = {};
-    if (!form.name.trim()) errors.name = '请输入项目名称';
-    if (Object.keys(errors).length) {
-      setFormErrors(errors);
-      return;
-    }
-    setFormErrors({});
-    createMutation.mutate(form);
-  };
+  const projects = useMemo(
+    () => (projectsQuery.data || []).map((project) => normalizeProject(project, workspaceQuery.data)),
+    [projectsQuery.data, workspaceQuery.data]
+  );
 
-  const isLoading = wsLoading || projLoading;
+  if (workspaceQuery.isLoading || projectsQuery.isLoading) {
+    return <WorkspaceSkeleton />;
+  }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-surface-500 dark:text-surface-400 mb-1">
-            <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">工作台</Link>
-            <span>/</span>
-            <span className="text-surface-900 dark:text-surface-100">{workspace?.name || '加载中...'}</span>
+    <div className="mx-auto max-w-7xl space-y-8">
+      <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-sm font-medium text-surface-500 dark:text-surface-400">工作区</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
+              {workspaceQuery.data?.name || '工作区'}
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
+              {workspaceQuery.data?.description || '项目、素材、上传和审阅都围绕这个工作区组织。'}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-surface-100">
-            {workspace?.name || '工作区'}
-          </h1>
-          {workspace?.description && (
-            <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">{workspace.description}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            leftIcon={Settings}
-            onClick={() => navigate(`/w/${workspaceId}/settings`)}
-          >
-            设置
-          </Button>
-          <Button leftIcon={Plus} onClick={() => setShowCreate(true)}>
-            新建项目
-          </Button>
-        </div>
-      </div>
 
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" text="加载中..." />
-        </div>
-      )}
-
-      {/* Empty */}
-      {!isLoading && projects?.length === 0 && (
-        <EmptyState
-          icon={FolderOpen}
-          title="还没有项目"
-          description="在这个工作区中创建你的第一个项目"
-          action={
-            <Button leftIcon={Plus} onClick={() => setShowCreate(true)}>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="secondary" leftIcon={Settings2} onClick={() => navigate(`/w/${workspaceId}/settings`)}>
+              工作区设置
+            </Button>
+            <Button leftIcon={Plus} onClick={() => setShowCreateProject(true)}>
               新建项目
             </Button>
-          }
-        />
-      )}
-
-      {/* Project grid */}
-      {!isLoading && projects?.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <div key={project.id} className="relative">
-              <Link to={`/project/${project.id}`}>
-                <Card hover className="h-full">
-                  {/* Cover image */}
-                  {project.cover ? (
-                    <div className="mb-3 aspect-video overflow-hidden rounded-lg bg-surface-100 dark:bg-surface-800">
-                      <div className="h-full w-full bg-gradient-to-br from-brand-100 to-brand-200 dark:from-brand-900/40 dark:to-brand-800/40 flex items-center justify-center">
-                        <Film size={24} className="text-brand-500" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mb-3 flex aspect-video items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
-                      <Film size={24} className="text-surface-400" />
-                    </div>
-                  )}
-
-                  <h3 className="font-semibold text-surface-900 dark:text-surface-100 truncate">
-                    {project.name}
-                  </h3>
-                  {project.description && (
-                    <p className="mt-1 text-sm text-surface-500 dark:text-surface-400 line-clamp-2">
-                      {project.description}
-                    </p>
-                  )}
-
-                  <div className="mt-3 flex items-center gap-3 text-xs text-surface-500 dark:text-surface-400">
-                    <span className="flex items-center gap-1">
-                      <Film size={12} />
-                      {project._count?.assets ?? project.assets_count ?? 0} 资源
-                    </span>
-                    {(project.updatedAt || project.updated_at) && (
-                      <span className="flex items-center gap-1 ml-auto">
-                        <Clock size={12} />
-                        {formatRelativeTime(project.updatedAt || project.updated_at)}
-                      </span>
-                    )}
-                  </div>
-
-                  {project.status && (
-                    <div className="mt-2">
-                      <Badge
-                        variant={
-                          project.status === 'active' ? 'success' :
-                          project.status === 'archived' ? 'warning' : 'default'
-                        }
-                      >
-                        {project.status === 'active' ? '进行中' :
-                         project.status === 'archived' ? '已归档' : project.status}
-                      </Badge>
-                    </div>
-                  )}
-                </Card>
-              </Link>
-
-              {/* Actions dropdown */}
-              <div className="absolute right-2 top-2">
-                <Dropdown
-                  align="right"
-                  items={[
-                    { label: '删除项目', icon: Trash2, danger: true, onClick: () => {
-                      if (window.confirm(`确定要删除项目「${project.name}」吗？此操作不可撤销。`)) {
-                        deleteMutation.mutate(project.id);
-                      }
-                    }},
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
+          </div>
         </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
+            <p className="text-sm text-surface-500 dark:text-surface-400">项目数</p>
+            <p className="mt-2 text-3xl font-semibold">{projects.length}</p>
+          </div>
+          <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
+            <p className="text-sm text-surface-500 dark:text-surface-400">成员数</p>
+            <p className="mt-2 text-3xl font-semibold">{workspaceQuery.data?._count?.members ?? workspaceQuery.data?.memberCount ?? 0}</p>
+          </div>
+          <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
+            <p className="text-sm text-surface-500 dark:text-surface-400">创建时间</p>
+            <p className="mt-2 text-sm font-medium">{formatRelativeTime(workspaceQuery.data?.createdAt)}</p>
+          </div>
+        </div>
+      </section>
+
+      {projects.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="这个工作区还没有项目"
+          description="先建一个项目，把上传、素材处理和审阅流程真正接起来。"
+          actionLabel="新建项目"
+          onAction={() => setShowCreateProject(true)}
+        />
+      ) : (
+        <section className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold">项目列表</h3>
+            <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
+              所有素材、上传和审阅页面都从这里继续进入。
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {projects.map((project) => (
+              <Card key={project.id} hover className="rounded-[24px] p-0">
+                <div className="flex items-start justify-between border-b border-surface-200 bg-surface-50 px-6 py-5 dark:border-surface-800 dark:bg-surface-950/70">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">项目</p>
+                    <Link to={`/project/${project.id}`} className="mt-2 block text-xl font-semibold hover:text-brand-600 dark:hover:text-brand-400">
+                      {project.name}
+                    </Link>
+                    <p className="mt-2 max-w-xl text-sm text-surface-500 dark:text-surface-400">
+                      {project.description || '用于承接同一批素材和审阅任务。'}
+                    </p>
+                  </div>
+                  <Dropdown
+                    align="right"
+                    trigger={(
+                      <button type="button" className="rounded-xl p-2 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800">
+                        <MoreHorizontal size={18} />
+                      </button>
+                    )}
+                    items={[
+                      {
+                        label: '删除项目',
+                        icon: Trash2,
+                        danger: true,
+                        onClick: () => {
+                          if (window.confirm(`确定要删除项目“${project.name}”吗？`)) {
+                            deleteProjectMutation.mutate(project.id);
+                          }
+                        },
+                      },
+                    ]}
+                  />
+                </div>
+
+                <div className="grid gap-3 px-6 py-5 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-900">
+                    <p className="text-sm text-surface-500 dark:text-surface-400">素材</p>
+                    <p className="mt-2 text-2xl font-semibold">{project.assetCount}</p>
+                  </div>
+                  <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-900">
+                    <p className="text-sm text-surface-500 dark:text-surface-400">文件夹</p>
+                    <p className="mt-2 text-2xl font-semibold">{project.folderCount}</p>
+                  </div>
+                  <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-900">
+                    <p className="text-sm text-surface-500 dark:text-surface-400">最近更新</p>
+                    <p className="mt-2 text-sm font-medium">{project.updatedLabel}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-6">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={project.status === 'archived' ? 'warning' : 'success'}>
+                      {project.status === 'archived' ? '已归档' : '进行中'}
+                    </Badge>
+                    <span className="text-sm text-surface-500 dark:text-surface-400">
+                      进入项目后可继续上传素材或开始审阅。
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/project/${project.id}`)}>
+                      查看项目
+                    </Button>
+                    <Button size="sm" onClick={() => navigate(`/project/${project.id}/upload`)}>
+                      上传素材
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Create project modal */}
       <Modal
-        open={showCreate}
+        open={showCreateProject}
         onClose={() => {
-          setShowCreate(false);
-          setFormErrors({});
+          setShowCreateProject(false);
           setForm({ name: '', description: '' });
+          setFormError('');
         }}
         title="新建项目"
-        description="在工作区中创建一个新项目"
+        description="项目是上传、素材整理和审阅协作的直接容器。"
       >
-        {formErrors.general && (
-          <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-            {formErrors.general}
-          </div>
-        )}
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!form.name.trim()) {
+              setFormError('请输入项目名称。');
+              return;
+            }
+            setFormError('');
+            createProjectMutation.mutate();
+          }}
+        >
           <Input
             label="项目名称"
             placeholder="例如：品牌宣传片 V2"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            error={formErrors.name}
+            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            error={formError}
             autoFocus
           />
           <Textarea
-            label="描述（可选）"
-            placeholder="简要描述这个项目"
+            label="项目说明"
+            placeholder="描述这个项目的用途、交付目标或协作范围。"
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           />
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={createMutation.isPending}>
+            <Button variant="ghost" onClick={() => setShowCreateProject(false)}>
               取消
             </Button>
-            <Button type="submit" loading={createMutation.isPending}>
-              创建
+            <Button type="submit" loading={createProjectMutation.isPending}>
+              创建项目
             </Button>
           </div>
         </form>

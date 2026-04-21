@@ -1,69 +1,72 @@
-import { useState, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  UploadCloud, X, CheckCircle, AlertCircle, Pause, Play,
-  ChevronRight, FolderOpen
-} from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, CheckCircle2, FolderTree, RefreshCw, UploadCloud } from 'lucide-react';
+import clsx from 'clsx';
 import client from '../api/client';
 import Button from '../components/ui/Button';
-import Spinner from '../components/ui/Spinner';
+import EmptyState from '../components/ui/EmptyState';
 import ProgressBar from '../components/ui/ProgressBar';
-import Card from '../components/ui/Card';
 import { formatBytes } from '../lib/utils';
-import clsx from 'clsx';
 
-function UploadItem({ file, progress, status, error, onCancel, onRetry }) {
-  const statusMap = {
-    pending: { label: '等待中', variant: 'default', color: 'brand' },
-    uploading: { label: '上传中', variant: 'warning', color: 'brand' },
-    success: { label: '完成', variant: 'success', color: 'success' },
-    error: { label: '失败', variant: 'danger', color: 'danger' },
-  };
-  const info = statusMap[status] || statusMap.pending;
+const uploadStatusCopy = {
+  pending: '待上传',
+  uploading: '上传中',
+  success: '已上传',
+  error: '上传失败',
+};
+
+function UploadListItem({ item, onRemove, onRetry }) {
+  const isUploading = item.status === 'uploading';
+  const isError = item.status === 'error';
+  const isSuccess = item.status === 'success';
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-surface-50 px-4 py-3 dark:bg-surface-800">
-      {/* File icon */}
-      <div className={clsx(
-        'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
-        status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-surface-200 dark:bg-surface-700'
-      )}>
-        {status === 'success' ? (
-          <CheckCircle size={18} className="text-emerald-600 dark:text-emerald-400" />
-        ) : status === 'error' ? (
-          <AlertCircle size={18} className="text-red-500" />
-        ) : (
-          <UploadCloud size={18} className="text-surface-400" />
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-surface-900 dark:text-surface-100 truncate">{file.name}</p>
-          <span className="text-xs text-surface-500 ml-2 flex-shrink-0">{formatBytes(file.size)}</span>
+    <div className="rounded-[22px] border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900">
+      <div className="flex items-start gap-4">
+        <div
+          className={clsx(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
+            isSuccess
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              : isError
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                : 'bg-surface-100 text-surface-500 dark:bg-surface-950 dark:text-surface-400'
+          )}
+        >
+          {isSuccess ? <CheckCircle2 size={20} /> : isError ? <AlertCircle size={20} /> : <UploadCloud size={20} />}
         </div>
-        {status === 'uploading' && (
-          <ProgressBar value={progress} size="sm" showLabel className="mt-1.5" />
-        )}
-        {status === 'error' && error && (
-          <p className="mt-1 text-xs text-red-500 truncate">{error}</p>
-        )}
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
-        {status === 'uploading' && onCancel && (
-          <Button variant="ghost" size="sm" onClick={onCancel} className="h-8 w-8 p-0">
-            <X size={14} />
-          </Button>
-        )}
-        {status === 'error' && onRetry && (
-          <Button variant="ghost" size="sm" onClick={onRetry} className="h-8 text-brand-600">
-            重试
-          </Button>
-        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{item.file.name}</p>
+              <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">{formatBytes(item.file.size)}</p>
+            </div>
+            <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{uploadStatusCopy[item.status]}</span>
+          </div>
+
+          {isUploading ? (
+            <div className="mt-3">
+              <ProgressBar value={item.progress} size="sm" showLabel />
+            </div>
+          ) : null}
+
+          {item.error ? <p className="mt-3 text-xs text-red-600 dark:text-red-400">{item.error}</p> : null}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {isError ? (
+              <Button size="sm" variant="secondary" leftIcon={RefreshCw} onClick={() => onRetry(item.id)}>
+                重试
+              </Button>
+            ) : null}
+            {!isUploading ? (
+              <Button size="sm" variant="ghost" onClick={() => onRemove(item.id)}>
+                移除
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -73,230 +76,227 @@ export default function UploadPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [files, setFiles] = useState([]);
-  const [folderId, setFolderId] = useState(null);
+  const [selectedFolderId, setSelectedFolderId] = useState('');
+  const [items, setItems] = useState([]);
 
-  const { data: project, isLoading: projLoading } = useQuery({
+  const projectQuery = useQuery({
     queryKey: ['project', projectId],
     queryFn: async () => {
-      const res = await client.get(`/projects/${projectId}`);
-      return res.data?.data || res.data;
+      const response = await client.get(`/projects/${projectId}`);
+      return response.data?.data || response.data || null;
     },
-    enabled: !!projectId,
+    enabled: Boolean(projectId),
   });
 
-  const { data: folders } = useQuery({
+  const foldersQuery = useQuery({
     queryKey: ['project-folders', projectId],
     queryFn: async () => {
-      const res = await client.get(`/projects/${projectId}/folders`);
-      return res.data?.data || res.data || [];
+      const response = await client.get(`/projects/${projectId}/folders/tree`);
+      return response.data?.data || response.data || [];
     },
-    enabled: !!projectId,
+    enabled: Boolean(projectId),
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async (uploadFiles) => {
-      const results = [];
-      for (const fileItem of uploadFiles) {
-        if (fileItem.status === 'success') continue;
-        try {
-          setFiles((prev) =>
-            prev.map((f) => (f.id === fileItem.id ? { ...f, status: 'uploading', progress: 0 } : f))
-          );
-
-          const formData = new FormData();
-          formData.append('file', fileItem.file);
-          formData.append('project_id', projectId);
-          if (folderId) formData.append('folder_id', folderId);
-
-          await client.post(`/projects/${projectId}/assets/upload`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (e) => {
-              const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
-              setFiles((prev) =>
-                prev.map((f) => (f.id === fileItem.id ? { ...f, progress: pct } : f))
-              );
-            },
-          });
-
-          setFiles((prev) =>
-            prev.map((f) => (f.id === fileItem.id ? { ...f, status: 'success', progress: 100 } : f))
-          );
-        } catch (err) {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileItem.id
-                ? { ...f, status: 'error', error: err.response?.data?.message || '上传失败' }
-                : f
-            )
-          );
-        }
+    mutationFn: async (item) => {
+      const formData = new FormData();
+      formData.append('file', item.file);
+      formData.append('project_id', projectId);
+      if (selectedFolderId) {
+        formData.append('folder_id', selectedFolderId);
       }
-      return results;
+
+      await client.post('/assets/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          const progress = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
+          setItems((current) => current.map((entry) => (
+            entry.id === item.id ? { ...entry, status: 'uploading', progress } : entry
+          )));
+        },
+      });
     },
-    onSuccess: () => {
+    onSuccess: (_, item) => {
+      setItems((current) => current.map((entry) => (
+        entry.id === item.id ? { ...entry, status: 'success', progress: 100, error: '' } : entry
+      )));
       queryClient.invalidateQueries({ queryKey: ['project-assets', projectId] });
+    },
+    onError: (error, item) => {
+      setItems((current) => current.map((entry) => (
+        entry.id === item.id
+          ? { ...entry, status: 'error', error: error.response?.data?.message || '上传失败，请稍后重试。' }
+          : entry
+      )));
     },
   });
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    addFiles(droppedFiles);
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-  }, []);
-
-  const handleFileSelect = (e) => {
-    const selected = Array.from(e.target.files);
-    addFiles(selected);
-  };
-
-  const addFiles = (newFiles) => {
-    const items = newFiles.map((f) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      file: f,
+  const addFiles = useCallback((incomingFiles) => {
+    const nextItems = incomingFiles.map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      file,
       status: 'pending',
       progress: 0,
-      error: null,
+      error: '',
     }));
-    setFiles((prev) => [...prev, ...items]);
+
+    setItems((current) => [...current, ...nextItems]);
+  }, []);
+
+  const handleDrop = useCallback((event) => {
+    event.preventDefault();
+    addFiles(Array.from(event.dataTransfer.files || []));
+  }, [addFiles]);
+
+  const handleSelectFiles = (event) => {
+    addFiles(Array.from(event.target.files || []));
   };
 
-  const removeFile = (id) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-  };
+  const uploadPendingFiles = useCallback(() => {
+    items
+      .filter((item) => item.status === 'pending' || item.status === 'error')
+      .forEach((item) => {
+        uploadMutation.mutate(item);
+      });
+  }, [items, uploadMutation]);
 
-  const startUpload = () => {
-    uploadMutation.mutate(files.filter((f) => f.status !== 'success'));
-  };
+  const allUploaded = useMemo(
+    () => items.length > 0 && items.every((item) => item.status === 'success'),
+    [items]
+  );
 
-  const retryFailed = () => {
-    const failed = files.filter((f) => f.status === 'error');
-    setFiles((prev) =>
-      prev.map((f) => (f.status === 'error' ? { ...f, status: 'pending', progress: 0, error: null } : f))
-    );
-  };
-
-  const allDone = files.length > 0 && files.every((f) => f.status === 'success');
-  const hasPending = files.some((f) => f.status === 'pending' || f.status === 'error');
-  const isUploading = files.some((f) => f.status === 'uploading');
+  const totalSize = items.reduce((sum, item) => sum + item.file.size, 0);
+  const uploadingCount = items.filter((item) => item.status === 'uploading').length;
+  const successCount = items.filter((item) => item.status === 'success').length;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      {/* Breadcrumb */}
-      <div className="mb-4 flex items-center gap-1.5 text-sm text-surface-500 dark:text-surface-400">
-        <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">工作台</Link>
-        <ChevronRight size={14} />
-        <Link to={`/project/${projectId}`} className="hover:text-brand-600 dark:hover:text-brand-400">
-          {project?.name || '项目'}
-        </Link>
-        <ChevronRight size={14} />
-        <span className="text-surface-900 dark:text-surface-100">上传</span>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
+        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">项目上传</p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
+          素材上传完成后，系统还会在后台继续处理封面、预览和可审阅版本。项目页和审阅页会自动刷新这些处理状态。
+        </p>
 
-      <h1 className="mb-6 text-2xl font-bold text-surface-900 dark:text-surface-100">上传文件</h1>
-
-      {/* Drop zone */}
-      {!allDone && (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className={clsx(
-            'mb-6 flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 text-center transition-colors cursor-pointer',
-            isUploading
-              ? 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-900'
-              : 'border-surface-300 bg-surface-50 hover:border-brand-400 hover:bg-brand-50/50 dark:border-surface-700 dark:bg-surface-900 dark:hover:border-brand-600'
-          )}
-          onClick={() => document.getElementById('file-input')?.click()}
-        >
-          <UploadCloud size={40} className="text-surface-400 mb-3" />
-          <p className="text-sm font-medium text-surface-700 dark:text-surface-300">
-            拖放文件到此处，或 <span className="text-brand-600 dark:text-brand-400">点击选择</span>
-          </p>
-          <p className="mt-1 text-xs text-surface-400">支持视频、图片、音频文件</p>
-          <input
-            id="file-input"
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">上传总量</p>
+            <p className="mt-2 text-2xl font-semibold">{items.length}</p>
+          </div>
+          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">上传中</p>
+            <p className="mt-2 text-2xl font-semibold">{uploadingCount}</p>
+          </div>
+          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">已完成</p>
+            <p className="mt-2 text-2xl font-semibold">{successCount}</p>
+          </div>
         </div>
-      )}
 
-      {/* Folder selection */}
-      {files.length > 0 && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
-            上传到文件夹
-          </label>
+        <div
+          className={clsx(
+            'mt-6 rounded-[28px] border-2 border-dashed px-6 py-10 text-center transition-colors',
+            uploadingCount
+              ? 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-950'
+              : 'border-surface-300 bg-surface-50 hover:border-brand-400 hover:bg-brand-50/40 dark:border-surface-700 dark:bg-surface-950 dark:hover:border-brand-600'
+          )}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+        >
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900">
+            <UploadCloud size={24} />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里，或点击选择素材</h3>
+          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+            支持视频、音频和图片。上传成功后会自动进入后台处理流程。
+          </p>
+          <div className="mt-6">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
+              选择文件
+              <input type="file" className="hidden" multiple onChange={handleSelectFiles} />
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <FolderTree size={16} />
+              上传目录
+            </div>
+            <p className="mt-2 text-xs leading-5 text-surface-500 dark:text-surface-400">
+              如果不选择文件夹，素材会进入项目根目录。上传完成后你仍可在项目页继续整理。
+            </p>
+          </div>
+
           <select
-            value={folderId || ''}
-            onChange={(e) => setFolderId(e.target.value || null)}
-            className="w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+            value={selectedFolderId}
+            onChange={(event) => setSelectedFolderId(event.target.value)}
+            className="rounded-2xl border border-surface-300 bg-white px-4 py-3 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
           >
-            <option value="">根目录</option>
-            {(folders || []).map((f) => (
-              <option key={f.id} value={f.id}>{f.name}</option>
+            <option value="">项目根目录</option>
+            {(foldersQuery.data || []).map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
             ))}
           </select>
         </div>
-      )}
+      </section>
 
-      {/* File list */}
-      {files.length > 0 && (
-        <div className="space-y-2 mb-6">
-          {files.map((fileItem) => (
-            <UploadItem
-              key={fileItem.id}
-              file={fileItem.file}
-              progress={fileItem.progress}
-              status={fileItem.status}
-              error={fileItem.error}
-              onCancel={() => removeFile(fileItem.id)}
-              onRetry={retryFailed}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Actions */}
-      {files.length > 0 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-surface-500">
-            {files.length} 个文件 · {formatBytes(files.reduce((sum, f) => sum + f.file.size, 0))}
-          </div>
-          <div className="flex items-center gap-2">
-            {allDone ? (
-              <Button onClick={() => navigate(`/project/${projectId}`)}>
-                查看资源
+      {items.length === 0 ? (
+        <EmptyState
+          icon={UploadCloud}
+          title="还没有待上传文件"
+          description="添加素材后，这里会展示上传进度以及后台处理提示。"
+        />
+      ) : (
+        <section className="space-y-4">
+          <div className="flex flex-col gap-4 rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">上传队列</h3>
+              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
+                共 {items.length} 个文件，合计 {formatBytes(totalSize)}。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="ghost" onClick={() => setItems([])} disabled={uploadingCount > 0}>
+                清空队列
               </Button>
-            ) : (
-              <>
-                <Button variant="ghost" onClick={() => setFiles([])} disabled={isUploading}>
-                  清空
+              {allUploaded ? (
+                <Button onClick={() => navigate(`/project/${projectId}`)}>返回项目查看处理进度</Button>
+              ) : (
+                <Button onClick={uploadPendingFiles} loading={uploadingCount > 0}>
+                  开始上传
                 </Button>
-                <Button
-                  onClick={startUpload}
-                  loading={isUploading}
-                  disabled={!hasPending}
-                >
-                  {hasPending && files.some((f) => f.status === 'error') ? '重试上传' : '开始上传'}
-                </Button>
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Empty state */}
-      {files.length === 0 && !isUploading && (
-        <p className="text-center text-sm text-surface-400">
-          选择或拖放文件开始上传
-        </p>
+          {allUploaded ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/10 dark:text-emerald-200">
+              文件已经上传完成，但系统仍在后台继续处理素材。你现在可以返回项目页查看处理状态，处理完成后再进入审阅页。
+            </div>
+          ) : null}
+
+          <div className="space-y-3">
+            {items.map((item) => (
+              <UploadListItem
+                key={item.id}
+                item={item}
+                onRemove={(id) => setItems((current) => current.filter((entry) => entry.id !== id))}
+                onRetry={(id) => {
+                  const target = items.find((entry) => entry.id === id);
+                  if (!target) return;
+                  setItems((current) => current.map((entry) => (
+                    entry.id === id ? { ...entry, status: 'pending', progress: 0, error: '' } : entry
+                  )));
+                  uploadMutation.mutate({ ...target, status: 'pending', progress: 0, error: '' });
+                }}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

@@ -1,112 +1,124 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { register } from '../api/auth';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+  });
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function updateField(field) {
-    return (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
-
-    if (!form.name.trim()) { setError('请输入姓名'); return; }
-    if (!form.email.trim()) { setError('请输入邮箱地址'); return; }
-    if (form.password.length < 8) { setError('密码至少需要 8 个字符'); return; }
-    if (form.password !== form.password_confirmation) { setError('两次密码输入不一致'); return; }
-
-    setIsLoading(true);
-    try {
-      await register({
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        password_confirmation: form.password_confirmation,
-      });
-      navigate('/login', { replace: true });
-    } catch (err) {
-      setError(err.response?.data?.message || '注册失败，请稍后重试');
-    } finally {
-      setIsLoading(false);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form.name.trim()) {
+      setError('请输入你的姓名。');
+      return;
     }
-  }
+    if (!form.email.trim()) {
+      setError('请输入邮箱地址。');
+      return;
+    }
+    if (form.password.length < 8) {
+      setError('密码长度至少为 8 位。');
+      return;
+    }
+    if (form.password !== form.password_confirmation) {
+      setError('两次输入的密码不一致。');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+    try {
+      await register(form);
+      navigate('/login', { replace: true });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || '注册失败，请稍后再试。');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div>
-      <h2 className="mb-1 text-xl font-semibold text-surface-900 dark:text-white">注册</h2>
-      <p className="mb-6 text-sm text-surface-500 dark:text-surface-400">
-        创建您的 FrameReview 账户
+      <p className="text-sm font-medium text-surface-500 dark:text-surface-400">创建账号</p>
+      <h2 className="mt-2 text-3xl font-semibold tracking-tight">开始你的协作工作流</h2>
+      <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+        注册完成后，即可进入工作台开始创建工作区和项目。
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-surface-700 dark:text-surface-300">姓名</label>
-          <input id="name" type="text" value={form.name} onChange={updateField('name')} placeholder="您的姓名" className="input" autoComplete="name" />
-        </div>
+      <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+        <Input
+          label="姓名"
+          placeholder="你的姓名"
+          value={form.name}
+          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+          autoComplete="name"
+        />
+        <Input
+          label="邮箱地址"
+          type="email"
+          placeholder="you@example.com"
+          value={form.email}
+          onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+          autoComplete="email"
+        />
 
-        <div>
-          <label htmlFor="reg-email" className="mb-1.5 block text-sm font-medium text-surface-700 dark:text-surface-300">邮箱地址</label>
-          <input id="reg-email" type="email" value={form.email} onChange={updateField('email')} placeholder="you@example.com" className="input" autoComplete="email" />
-        </div>
-
-        <div>
-          <label htmlFor="reg-password" className="mb-1.5 block text-sm font-medium text-surface-700 dark:text-surface-300">密码</label>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-surface-700 dark:text-surface-300">密码</label>
           <div className="relative">
-            <input
-              id="reg-password"
+            <Input
               type={showPassword ? 'text' : 'password'}
+              placeholder="至少 8 位"
               value={form.password}
-              onChange={updateField('password')}
-              placeholder="至少 8 个字符"
-              className="input pr-10"
+              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
               autoComplete="new-password"
+              className="pr-11"
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300">
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-200"
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
         </div>
 
-        <div>
-          <label htmlFor="reg-password-confirm" className="mb-1.5 block text-sm font-medium text-surface-700 dark:text-surface-300">确认密码</label>
-          <input
-            id="reg-password-confirm"
-            type="password"
-            value={form.password_confirmation}
-            onChange={updateField('password_confirmation')}
-            placeholder="再次输入密码"
-            className="input"
-            autoComplete="new-password"
-          />
-        </div>
+        <Input
+          label="确认密码"
+          type="password"
+          placeholder="再次输入密码"
+          value={form.password_confirmation}
+          onChange={(event) => setForm((current) => ({ ...current, password_confirmation: event.target.value }))}
+          autoComplete="new-password"
+        />
 
-        {error && (
-          <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</div>
-        )}
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-300">
+            {error}
+          </div>
+        ) : null}
 
-        <button type="submit" disabled={isLoading} className="btn-primary w-full">
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              注册中…
-            </>
-          ) : (
-            '注册'
-          )}
-        </button>
+        <Button type="submit" fullWidth loading={loading}>
+          注册
+        </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-surface-500 dark:text-surface-400">
-        已有账户？{' '}
-        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">登录</Link>
+        已有账号？{' '}
+        <Link to="/login" className="font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+          去登录
+        </Link>
       </p>
     </div>
   );

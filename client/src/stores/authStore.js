@@ -1,46 +1,48 @@
 import { create } from 'zustand';
-import { login as loginApi, me as meApi, logout as logoutApi } from '../api/auth';
+import { login as loginApi, logout as logoutApi, me as meApi } from '../api/auth';
 
 const useAuthStore = create((set, get) => ({
-  // State
   user: null,
   token: null,
   refreshToken: null,
   isLoading: true,
   error: null,
 
-  // Actions
   setTokens: ({ token, refreshToken }) => {
     localStorage.setItem('token', token);
     if (refreshToken) {
       localStorage.setItem('refresh_token', refreshToken);
     }
-    set({ token, refreshToken: refreshToken || get().refreshToken });
+
+    set({
+      token,
+      refreshToken: refreshToken || get().refreshToken,
+    });
   },
 
   login: async ({ email, password }) => {
     set({ error: null, isLoading: true });
+
     try {
       const { data } = await loginApi({ email, password });
-      const { user, token, refresh_token } = data;
+      const { user, token, refresh_token: nextRefreshToken } = data;
 
       localStorage.setItem('token', token);
-      if (refresh_token) {
-        localStorage.setItem('refresh_token', refresh_token);
+      if (nextRefreshToken) {
+        localStorage.setItem('refresh_token', nextRefreshToken);
       }
 
       set({
         user,
         token,
-        refreshToken: refresh_token || null,
+        refreshToken: nextRefreshToken || null,
         error: null,
         isLoading: false,
       });
 
       return { success: true };
-    } catch (err) {
-      const message =
-        err.response?.data?.message || '登录失败，请检查邮箱和密码';
+    } catch (error) {
+      const message = error.response?.data?.message || '登录失败，请检查邮箱和密码后重试。';
       set({ error: message, isLoading: false });
       return { success: false, error: message };
     }
@@ -52,7 +54,7 @@ const useAuthStore = create((set, get) => ({
         await logoutApi();
       }
     } catch {
-      // Ignore logout API errors – clear local state anyway
+      // Ignore logout API errors and clear local state anyway.
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
@@ -79,13 +81,18 @@ const useAuthStore = create((set, get) => ({
 
     try {
       const { data } = await meApi();
-      set({ user: data.user || data, isLoading: false });
+      set({ user: data.user || data, isLoading: false, error: null });
       return true;
     } catch {
-      // Token invalid – clear everything
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
-      set({ user: null, token: null, refreshToken: null, isLoading: false });
+      set({
+        user: null,
+        token: null,
+        refreshToken: null,
+        isLoading: false,
+        error: null,
+      });
       return false;
     }
   },

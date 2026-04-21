@@ -35,7 +35,11 @@ function GuestRoute({ children }) {
 function AdminRoute({ children }) {
   const user = useAuthStore((s) => s.user);
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'admin') return <Navigate to="/" replace />;
+  const hasAdminRole =
+    user.role === 'admin'
+    || user.role === 'system_admin'
+    || (Array.isArray(user.roles) && user.roles.some((role) => ['admin', 'system_admin'].includes(role?.name || role?.role?.name)));
+  if (!hasAdminRole) return <Navigate to="/" replace />;
   return children;
 }
 

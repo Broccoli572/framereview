@@ -4,19 +4,19 @@ import clsx from 'clsx';
 
 const variants = {
   primary:
-    'bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 focus-visible:ring-brand-500 shadow-sm',
+    'bg-surface-900 text-white shadow-sm hover:-translate-y-0.5 hover:bg-surface-800 active:translate-y-0 active:bg-surface-950 focus-visible:ring-surface-500 dark:bg-surface-100 dark:text-surface-900 dark:hover:bg-white',
   secondary:
-    'bg-surface-100 text-surface-700 hover:bg-surface-200 active:bg-surface-300 focus-visible:ring-surface-400 dark:bg-surface-800 dark:text-surface-200 dark:hover:bg-surface-700 dark:active:bg-surface-600',
+    'bg-surface-100 text-surface-700 ring-1 ring-inset ring-surface-200 hover:bg-surface-200 active:bg-surface-300 focus-visible:ring-surface-400 dark:bg-surface-800 dark:text-surface-200 dark:ring-surface-700 dark:hover:bg-surface-700 dark:active:bg-surface-600',
   ghost:
     'text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:ring-surface-400 dark:text-surface-300 dark:hover:bg-surface-800 dark:active:bg-surface-700',
   danger:
-    'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm',
+    'bg-red-600 text-white shadow-sm hover:-translate-y-0.5 hover:bg-red-700 active:translate-y-0 active:bg-red-800 focus-visible:ring-red-500',
 };
 
 const sizes = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
-  md: 'h-9 px-4 text-sm gap-2 rounded-lg',
-  lg: 'h-11 px-6 text-sm gap-2 rounded-lg',
+  sm: 'h-8 rounded-lg px-3 text-xs gap-1.5',
+  md: 'h-10 rounded-xl px-4 text-sm gap-2',
+  lg: 'h-11 rounded-xl px-5 text-sm gap-2',
 };
 
 const iconSizes = {
@@ -50,7 +50,7 @@ const Button = forwardRef(function Button(
       type={type}
       disabled={isDisabled}
       className={clsx(
-        'inline-flex items-center justify-center font-medium transition-all duration-200 ease-in-out',
+        'inline-flex items-center justify-center font-medium tracking-[0.01em] transition-all duration-200 ease-out',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
         'dark:focus-visible:ring-offset-surface-900',
         'disabled:pointer-events-none disabled:opacity-50',
@@ -62,7 +62,7 @@ const Button = forwardRef(function Button(
       {...props}
     >
       {loading ? (
-        <Loader2 className={clsx('animate-spin', LeftIcon || RightIcon ? '' : 'mr-0')} size={iconSize} aria-hidden="true" />
+        <Loader2 className="animate-spin" size={iconSize} aria-hidden="true" />
       ) : (
         LeftIcon && <LeftIcon size={iconSize} aria-hidden="true" />
       )}

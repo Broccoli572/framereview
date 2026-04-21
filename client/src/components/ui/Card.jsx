@@ -18,31 +18,29 @@ function Card({
   return (
     <Component
       className={clsx(
-        'rounded-lg border border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-800',
-        'transition-all duration-200',
-        hover && 'hover:shadow-md hover:border-surface-300 dark:hover:border-surface-600',
-        clickable && 'cursor-pointer hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700',
+        'rounded-[24px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900',
+        'transition-all duration-200 ease-out',
+        hover && 'hover:-translate-y-0.5 hover:border-surface-300 hover:shadow-lg dark:hover:border-surface-700',
+        clickable && 'cursor-pointer',
         className
       )}
       {...clickableProps}
     >
-      {header && (
-        <div className="border-b border-surface-200 px-5 py-4 dark:border-surface-700">
+      {header ? (
+        <div className="border-b border-surface-200 px-5 py-4 dark:border-surface-800">
           {typeof header === 'string' ? (
-            <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">
-              {header}
-            </h3>
+            <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">{header}</h3>
           ) : (
             header
           )}
         </div>
-      )}
+      ) : null}
       <div className={clsx(padding && 'p-5')}>{children}</div>
-      {footer && (
-        <div className="border-t border-surface-200 px-5 py-4 dark:border-surface-700">
+      {footer ? (
+        <div className="border-t border-surface-200 px-5 py-4 dark:border-surface-800">
           {footer}
         </div>
-      )}
+      ) : null}
     </Component>
   );
 }

@@ -1,57 +1,50 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Play,
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  Film,
+  Maximize2,
+  MessageSquare,
   Pause,
+  Play,
+  RefreshCw,
+  Send,
   Volume2,
   VolumeX,
-  Maximize,
-  SkipBack,
-  SkipForward,
-  MessageSquare,
-  Film,
-  Send,
-  Check,
-  ArrowLeft,
+  Waves,
 } from 'lucide-react';
 import clsx from 'clsx';
 import client from '../api/client';
+import { processAsset } from '../api/assets';
+import {
+  addComment,
+  createThread,
+  getReviewStatus,
+  getThreads,
+  resolveThread,
+  setAssetApproval,
+  unresolveThread,
+} from '../api/reviews';
 import Avatar from '../components/ui/Avatar';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
-import { formatDuration } from '../lib/utils';
-import { addComment, createThread, getThreads, resolveThread } from '../api/reviews';
+import Skeleton from '../components/ui/Skeleton';
+import Textarea from '../components/ui/Textarea';
+import { formatDuration, formatTimecode } from '../lib/utils';
+import { getReviewApprovalMeta, normalizeAsset, normalizeReviewThread } from '../lib/view-models';
 
-function normalizeThread(thread) {
-  const comments = (thread.comments || []).map((comment) => ({
-    ...comment,
-    createdAt: comment.createdAt || comment.created_at || null,
-  }));
-  const firstComment = comments[0];
-
-  return {
-    ...thread,
-    comments,
-    timecode: thread.timecodeSeconds ?? 0,
-    content: firstComment?.content || '',
-    user: firstComment?.user || null,
-    createdAt: firstComment?.createdAt || thread.createdAt || null,
-    resolved: thread.status === 'resolved',
-  };
-}
-
-function resolveMediaUrl(asset, versions, selectedVersion) {
-  const currentVersion = selectedVersion || versions?.[0] || asset;
-
+function resolveMediaUrl(asset, selectedVersion) {
   return (
-    currentVersion?.preview?.proxyUrl ||
-    currentVersion?.preview?.hlsUrl ||
-    currentVersion?.url ||
-    currentVersion?.file_url ||
-    currentVersion?.storagePath ||
+    selectedVersion?.preview?.proxyUrl ||
+    selectedVersion?.preview?.hlsUrl ||
+    selectedVersion?.preview?.posterUrl ||
+    selectedVersion?.fileUrl ||
+    selectedVersion?.file_url ||
+    asset?.preview?.proxyUrl ||
     asset?.url ||
     asset?.file_url ||
     asset?.storagePath ||
@@ -59,349 +52,548 @@ function resolveMediaUrl(asset, versions, selectedVersion) {
   );
 }
 
+function ReviewSkeleton() {
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="space-y-5">
+        <div className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-24 rounded-lg" />
+            <Skeleton className="h-8 w-72 rounded-lg" />
+            <Skeleton className="h-4 w-96 rounded-lg" />
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} className="h-24 w-full rounded-2xl" />
+            ))}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-[26px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+          <Skeleton className="h-[420px] w-full rounded-none" />
+          <div className="space-y-4 p-4">
+            <Skeleton className="h-14 w-full rounded-2xl" />
+            <Skeleton className="h-14 w-full rounded-2xl" />
+          </div>
+        </div>
+      </section>
+      <aside className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+        <div className="space-y-4">
+          <Skeleton className="h-5 w-28 rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 w-full rounded-2xl" />
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function ThreadListSkeleton() {
+  return (
+    <div className="space-y-3 px-5 py-4">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div key={index} className="space-y-2 rounded-2xl border border-surface-200 p-4 dark:border-surface-800">
+          <Skeleton className="h-3 w-24 rounded-lg" />
+          <Skeleton className="h-4 w-full rounded-lg" />
+          <Skeleton className="h-3 w-32 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ReviewPage() {
   const { assetId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const videoRef = useRef(null);
+  const mediaRef = useRef(null);
   const timelineRef = useRef(null);
 
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [showThreads, setShowThreads] = useState(true);
-  const [commentText, setCommentText] = useState('');
-  const [activeThread, setActiveThread] = useState(null);
-  const [selectedVersion, setSelectedVersion] = useState(null);
-  const [commentMode, setCommentMode] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState('');
+  const [activeThreadId, setActiveThreadId] = useState(null);
+  const [draftTimecode, setDraftTimecode] = useState(null);
+  const [message, setMessage] = useState('');
 
-  const { data: asset, isLoading } = useQuery({
+  const assetQuery = useQuery({
     queryKey: ['asset', assetId],
     queryFn: async () => {
-      const res = await client.get(`/assets/${assetId}`);
-      return res.data?.data || res.data;
+      const response = await client.get(`/assets/${assetId}`);
+      return response.data?.data || response.data || null;
     },
-    enabled: !!assetId,
+    enabled: Boolean(assetId),
   });
 
-  const { data: versions } = useQuery({
+  const assetViewModel = useMemo(
+    () => (assetQuery.data ? normalizeAsset(assetQuery.data) : null),
+    [assetQuery.data]
+  );
+
+  const projectQuery = useQuery({
+    queryKey: ['review-project', assetViewModel?.projectId],
+    queryFn: async () => {
+      const response = await client.get(`/projects/${assetViewModel.projectId}`);
+      const payload = response.data?.data || response.data || null;
+      return payload
+        ? {
+            ...payload,
+            workspaceName: payload.workspace?.name || null,
+            workspaceId: payload.workspaceId || payload.workspace?.id || null,
+          }
+        : null;
+    },
+    enabled: Boolean(assetViewModel?.projectId),
+  });
+
+  const versionsQuery = useQuery({
     queryKey: ['asset-versions', assetId],
     queryFn: async () => {
-      const res = await client.get(`/assets/${assetId}/versions`);
-      return res.data?.data || res.data || [];
+      const response = await client.get(`/assets/${assetId}/versions`);
+      return response.data?.data || response.data || [];
     },
-    enabled: !!assetId,
+    enabled: Boolean(assetId),
   });
 
-  const { data: threads = [], isLoading: threadsLoading } = useQuery({
+  const threadsQuery = useQuery({
     queryKey: ['asset-threads', assetId],
     queryFn: async () => {
-      const res = await getThreads(assetId);
-      const rawThreads = res.data?.data || res.data?.threads || res.data || [];
-      return rawThreads.map(normalizeThread);
+      const response = await getThreads(assetId);
+      const payload = response.data?.data || response.data?.threads || response.data || [];
+      return payload.map(normalizeReviewThread);
     },
-    enabled: !!assetId,
+    enabled: Boolean(assetId),
+  });
+
+  const reviewStatusQuery = useQuery({
+    queryKey: ['asset-review-status', assetId],
+    queryFn: async () => {
+      const response = await getReviewStatus(assetId);
+      return response.data?.data || response.data || {};
+    },
+    enabled: Boolean(assetId),
+  });
+
+  const retryProcessingMutation = useMutation({
+    mutationFn: () => processAsset(assetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asset', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-versions', assetId] });
+    },
+  });
+
+  const createThreadMutation = useMutation({
+    mutationFn: ({ body, timecode }) => createThread(assetId, { body, timecode }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
+      setMessage('');
+      setDraftTimecode(null);
+    },
   });
 
   const addCommentMutation = useMutation({
     mutationFn: ({ threadId, body }) => addComment(threadId, { body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
-      setCommentText('');
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
+      setMessage('');
     },
   });
 
-  const createThreadMutation = useMutation({
-    mutationFn: ({ timecode, body }) => createThread(assetId, { timecode, body }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
-      setCommentText('');
-      setCommentMode(false);
-      setActiveThread(null);
-    },
-  });
-
-  const resolveMutation = useMutation({
+  const resolveThreadMutation = useMutation({
     mutationFn: (threadId) => resolveThread(threadId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
     },
   });
 
-  const orderedThreads = useMemo(
-    () => [...threads].sort((a, b) => (a.timecode || 0) - (b.timecode || 0)),
-    [threads]
-  );
+  const reopenThreadMutation = useMutation({
+    mutationFn: (threadId) => unresolveThread(threadId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
+    },
+  });
 
-  const videoUrl = resolveMediaUrl(asset, versions, selectedVersion);
-  const getThreadSummary = (thread) => thread.content || '标注';
+  const approvalMutation = useMutation({
+    mutationFn: (status) => setAssetApproval(assetId, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-threads', assetId] });
+    },
+  });
+
+  const versions = versionsQuery.data || [];
+
+  useEffect(() => {
+    if (!selectedVersionId && versions.length > 0) {
+      setSelectedVersionId(versions[0].id);
+    }
+  }, [selectedVersionId, versions]);
+
+  useEffect(() => {
+    if (!assetViewModel?.isProcessing) return undefined;
+
+    const timer = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['asset', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-versions', assetId] });
+      queryClient.invalidateQueries({ queryKey: ['asset-review-status', assetId] });
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [assetId, assetViewModel?.isProcessing, queryClient]);
+
+  const selectedVersion = versions.find((version) => version.id === selectedVersionId) || versions[0] || null;
+  const mediaUrl = resolveMediaUrl(assetQuery.data, selectedVersion);
+  const threads = useMemo(
+    () => [...(threadsQuery.data || [])].sort((a, b) => a.timecode - b.timecode),
+    [threadsQuery.data]
+  );
+  const activeThread = threads.find((thread) => thread.id === activeThreadId) || null;
+  const reviewMeta = getReviewApprovalMeta(reviewStatusQuery.data?.status);
+  const unresolvedCount = threads.filter((thread) => !thread.resolved).length;
+  const resolvedCount = threads.filter((thread) => thread.resolved).length;
+  const selectedTimecode = draftTimecode ?? activeThread?.timecode ?? currentTime;
+  const timelineFocusThread = activeThread || (draftTimecode != null
+    ? {
+        id: 'draft',
+        resolved: false,
+        previewText: '当前时间点的新批注尚未发送。',
+        timecode: draftTimecode,
+      }
+    : null);
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+    if (mediaRef.current) {
+      setCurrentTime(mediaRef.current.currentTime || 0);
     }
   };
 
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration || 0);
+    if (mediaRef.current) {
+      setDuration(mediaRef.current.duration || 0);
     }
   };
 
-  const togglePlay = () => {
-    if (!videoRef.current) return;
+  const seekTo = (timecode) => {
+    if (!mediaRef.current || !Number.isFinite(timecode)) return;
+    mediaRef.current.currentTime = Math.max(0, Math.min(timecode, duration || timecode));
+    setCurrentTime(mediaRef.current.currentTime);
+  };
+
+  const togglePlay = async () => {
+    if (!mediaRef.current) return;
 
     if (isPlaying) {
-      videoRef.current.pause();
+      mediaRef.current.pause();
     } else {
-      videoRef.current.play();
+      try {
+        await mediaRef.current.play();
+      } catch {
+        setIsPlaying(false);
+      }
     }
   };
 
-  const seek = (time) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(0, Math.min(time, duration || time));
-    setCurrentTime(videoRef.current.currentTime);
+  const toggleMute = () => {
+    if (!mediaRef.current) return;
+    const nextMuted = !muted;
+    mediaRef.current.muted = nextMuted;
+    setMuted(nextMuted);
+  };
+
+  const handleVolumeChange = (event) => {
+    const nextValue = Number(event.target.value);
+    setVolume(nextValue);
+    if (!mediaRef.current) return;
+    mediaRef.current.volume = nextValue;
+    mediaRef.current.muted = nextValue === 0;
+    setMuted(nextValue === 0);
   };
 
   const handleTimelineClick = (event) => {
     if (!timelineRef.current || !duration) return;
-
     const rect = timelineRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, x / rect.width));
-    const timecode = ratio * duration;
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const nextTimecode = ratio * duration;
 
-    seek(timecode);
-
-    if (commentMode) {
-      setActiveThread({ timecode, isNew: true, comments: [] });
-      setCommentMode(false);
-    }
+    setActiveThreadId(null);
+    setDraftTimecode(nextTimecode);
+    seekTo(nextTimecode);
   };
 
-  const handleThreadClick = (thread) => {
-    setActiveThread(thread);
-    if (thread.timecode != null) {
-      seek(thread.timecode);
-    }
-  };
-
-  const handleSubmitComment = () => {
-    const body = commentText.trim();
+  const handleSubmit = () => {
+    const body = message.trim();
     if (!body) return;
-
-    if (activeThread?.isNew) {
-      createThreadMutation.mutate({ timecode: activeThread.timecode, body });
-      return;
-    }
 
     if (activeThread?.id) {
       addCommentMutation.mutate({ threadId: activeThread.id, body });
       return;
     }
 
-    createThreadMutation.mutate({ timecode: currentTime, body });
+    createThreadMutation.mutate({
+      body,
+      timecode: Number.isFinite(selectedTimecode) ? selectedTimecode : 0,
+    });
   };
 
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    const nextMuted = !muted;
-    videoRef.current.muted = nextMuted;
-    setMuted(nextMuted);
-  };
+  const mediaType = assetViewModel?.mediaType || assetQuery.data?.type || 'video';
+  const isVisualTimeline = ['video', 'audio'].includes(mediaType) && duration > 0;
 
-  const changeVolume = (event) => {
-    const nextVolume = parseFloat(event.target.value);
-    setVolume(nextVolume);
-
-    if (videoRef.current) {
-      videoRef.current.volume = nextVolume;
-      const nextMuted = nextVolume === 0;
-      videoRef.current.muted = nextMuted;
-      setMuted(nextMuted);
-    }
-  };
-
-  const changePlaybackRate = (nextRate) => {
-    setPlaybackRate(nextRate);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = nextRate;
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-
-      switch (event.key) {
-        case ' ':
-          event.preventDefault();
-          togglePlay();
-          break;
-        case 'ArrowLeft':
-          event.preventDefault();
-          seek(currentTime - 5);
-          break;
-        case 'ArrowRight':
-          event.preventDefault();
-          seek(currentTime + 5);
-          break;
-        case 'm':
-          toggleMute();
-          break;
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTime, muted, isPlaying, duration]);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Spinner size="lg" text="加载审阅页面..." />
-      </div>
-    );
+  if (assetQuery.isLoading) {
+    return <ReviewSkeleton />;
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-surface-200 bg-white px-4 py-2 dark:border-surface-800 dark:bg-surface-900">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
-        >
-          <ArrowLeft size={18} />
-        </button>
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="space-y-5">
+        <div className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-sm text-surface-500 transition-colors hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
+                onClick={() => navigate(assetViewModel?.projectId ? `/project/${assetViewModel.projectId}` : -1)}
+              >
+                <ArrowLeft size={16} />
+                返回项目
+              </button>
+              <p className="mt-3 text-sm font-medium text-surface-500 dark:text-surface-400">审阅工作台</p>
+              <h2 className="mt-2 truncate text-2xl font-semibold">{assetViewModel?.name || '素材审阅'}</h2>
+              <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+                {projectQuery.data?.workspaceName ? `${projectQuery.data.workspaceName} / ` : null}
+                {projectQuery.data?.name || '当前项目'} · {assetViewModel?.sizeLabel || '--'} · {assetViewModel?.durationLabel || '--'}
+              </p>
+            </div>
 
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold text-surface-900 dark:text-surface-100">
-            {asset?.name || '审阅'}
-          </h2>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={assetViewModel?.statusVariant || 'default'}>{assetViewModel?.statusLabel || '未知状态'}</Badge>
+              <Badge variant={reviewMeta.variant}>{reviewMeta.label}</Badge>
+              {versions.length ? (
+                <select
+                  value={selectedVersionId}
+                  onChange={(event) => setSelectedVersionId(event.target.value)}
+                  className="rounded-xl border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                >
+                  {versions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      版本 {version.versionNumber}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
+          </div>
+
+          {assetViewModel?.status === 'processing' ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
+              素材仍在后台处理中。页面会自动刷新，处理完成后可直接进入正式审阅。
+            </div>
+          ) : null}
+
+          {assetViewModel?.status === 'failed' ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-200">
+              <span>当前素材处理失败，暂时无法稳定生成预览。</span>
+              <Button size="sm" variant="secondary" leftIcon={RefreshCw} onClick={() => retryProcessingMutation.mutate()}>
+                重新处理
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={CheckCheck}
+              onClick={() => approvalMutation.mutate('approved')}
+              disabled={approvalMutation.isPending || assetViewModel?.status !== 'ready'}
+            >
+              标记为通过
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={MessageSquare}
+              onClick={() => approvalMutation.mutate('needs_review')}
+              disabled={approvalMutation.isPending || assetViewModel?.status === 'processing'}
+            >
+              标记为待处理
+            </Button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+              <p className="text-sm text-surface-500 dark:text-surface-400">当前版本</p>
+              <p className="mt-2 text-xl font-semibold">
+                {selectedVersion?.versionNumber ? `v${selectedVersion.versionNumber}` : '未生成'}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+              <p className="text-sm text-surface-500 dark:text-surface-400">待处理线程</p>
+              <p className="mt-2 text-xl font-semibold">{unresolvedCount}</p>
+            </div>
+            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+              <p className="text-sm text-surface-500 dark:text-surface-400">已解决线程</p>
+              <p className="mt-2 text-xl font-semibold">{resolvedCount}</p>
+            </div>
+          </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setCommentMode((current) => !current)}
-          className={clsx(commentMode && 'bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400')}
-          leftIcon={MessageSquare}
-        >
-          {commentMode ? '取消标注' : '添加标注'}
-        </Button>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="relative flex flex-1 items-center justify-center bg-black">
-            {videoUrl ? (
+        <div className="overflow-hidden rounded-[26px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+          <div className="relative flex min-h-[320px] items-center justify-center bg-surface-950 md:min-h-[420px]">
+            {!mediaUrl ? (
+              <div className="flex flex-col items-center gap-3 px-6 text-center text-surface-400">
+                <Film size={42} />
+                <p className="text-sm">还没有可用预览，素材处理完成后会自动显示。</p>
+              </div>
+            ) : mediaType === 'image' ? (
+              <img src={mediaUrl} alt={assetViewModel?.name} className="max-h-[70vh] w-full object-contain" />
+            ) : mediaType === 'audio' ? (
+              <div className="flex w-full max-w-xl flex-col items-center gap-6 rounded-[24px] border border-surface-800 bg-surface-900 px-8 py-10">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface-800 text-white">
+                  <Waves size={32} />
+                </div>
+                <p className="text-sm text-surface-300">{assetViewModel?.name}</p>
+                <audio
+                  ref={mediaRef}
+                  src={mediaUrl}
+                  className="hidden"
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                />
+              </div>
+            ) : (
               <video
-                ref={videoRef}
-                src={videoUrl}
-                className="max-h-full max-w-full"
+                ref={mediaRef}
+                src={mediaUrl}
+                className="max-h-[70vh] w-full object-contain"
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
-                onClick={togglePlay}
                 playsInline
               />
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-surface-400">
-                <Film size={48} />
-                <p className="text-sm">预览暂不可用</p>
-              </div>
             )}
 
-            {!isPlaying && videoUrl && (
-              <div
-                className="absolute inset-0 flex cursor-pointer items-center justify-center"
+            {mediaUrl && mediaType === 'video' && !isPlaying ? (
+              <button
+                type="button"
+                className="absolute inset-0 flex items-center justify-center"
                 onClick={togglePlay}
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm transition-transform hover:scale-110">
-                  <Play size={28} className="ml-1 text-white" />
-                </div>
-              </div>
-            )}
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur">
+                  <Play size={28} className="ml-1" />
+                </span>
+              </button>
+            ) : null}
           </div>
 
-          <div className="bg-surface-900 px-4 py-2">
-            <div
-              ref={timelineRef}
-              className={clsx('group relative flex h-8 cursor-pointer items-center', commentMode && 'bg-brand-900/30')}
-              onClick={handleTimelineClick}
-            >
-              <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-surface-700">
+          <div className="border-t border-surface-200 bg-surface-950 px-4 py-4 text-white dark:border-surface-800">
+            {isVisualTimeline ? (
+              <div>
+                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-surface-800 bg-surface-900/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-surface-500">时间轴焦点</p>
+                    <p className="mt-1 text-sm font-medium">
+                      {timelineFocusThread
+                        ? formatTimecode(timelineFocusThread.timecode || 0)
+                        : formatTimecode(currentTime)}
+                    </p>
+                  </div>
+                  <div className="max-w-[520px] text-sm text-surface-300">
+                    {timelineFocusThread
+                      ? timelineFocusThread.previewText
+                      : '点击时间轴任意位置快速定位，再从右侧创建或回复批注。'}
+                  </div>
+                </div>
+
                 <div
-                  className="h-full rounded-full bg-brand-500 transition-[width] duration-100"
-                  style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-                />
-              </div>
-
-              {showThreads && orderedThreads.map((thread) => (
-                <div
-                  key={thread.id}
-                  className={clsx(
-                    'absolute top-1/2 z-10 h-2.5 w-2.5 -translate-y-1/2 rounded-full transition-transform hover:scale-150',
-                    thread.resolved
-                      ? 'bg-surface-500'
-                      : activeThread?.id === thread.id
-                        ? 'bg-brand-400 ring-2 ring-brand-300'
-                        : 'bg-amber-500'
-                  )}
-                  style={{ left: `${duration ? (thread.timecode / duration) * 100 : 0}%` }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleThreadClick(thread);
-                  }}
-                  title={`${formatDuration(thread.timecode || 0)} - ${getThreadSummary(thread)}`}
-                />
-              ))}
-
-              <div
-                className="pointer-events-none absolute top-1/2 z-10 h-5 w-3 -translate-y-1/2 rounded-sm bg-white shadow-md"
-                style={{ left: duration ? `calc(${(currentTime / duration) * 100}% - 6px)` : '0%' }}
-              />
-            </div>
-
-            <div className="mt-1 flex items-center gap-2">
-              <button onClick={() => seek(0)} className="p-1 text-surface-400 hover:text-white">
-                <SkipBack size={14} />
-              </button>
-              <button onClick={togglePlay} className="p-1 text-white">
-                {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-              </button>
-              <button onClick={() => seek(duration)} className="p-1 text-surface-400 hover:text-white">
-                <SkipForward size={14} />
-              </button>
-
-              <span className="ml-1 font-mono text-xs tabular-nums text-surface-400">
-                {formatDuration(currentTime)} / {formatDuration(duration)}
-              </span>
-
-              <div className="ml-auto flex items-center gap-2">
-                <select
-                  value={playbackRate}
-                  onChange={(event) => changePlaybackRate(parseFloat(event.target.value))}
-                  className="h-6 cursor-pointer rounded bg-transparent px-1 text-xs text-surface-400"
+                  ref={timelineRef}
+                  className="relative h-14 cursor-pointer"
+                  onClick={handleTimelineClick}
                 >
-                  <option value="0.5">0.5x</option>
-                  <option value="0.75">0.75x</option>
-                  <option value="1">1x</option>
-                  <option value="1.25">1.25x</option>
-                  <option value="1.5">1.5x</option>
-                  <option value="2">2x</option>
-                </select>
+                  <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-surface-700">
+                    <div
+                      className="h-full rounded-full bg-brand-500"
+                      style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                    />
+                  </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button onClick={toggleMute} className="p-1 text-surface-400 hover:text-white">
+                  <div
+                    className="pointer-events-none absolute top-1/2 z-20 h-8 w-[2px] -translate-y-1/2 bg-white/90 shadow-[0_0_0_4px_rgba(255,255,255,0.08)]"
+                    style={{ left: `calc(${duration ? (currentTime / duration) * 100 : 0}% - 1px)` }}
+                  />
+                  <div
+                    className="pointer-events-none absolute top-0 z-20 -translate-x-1/2 rounded-full bg-white px-2 py-1 text-[11px] font-medium text-surface-900"
+                    style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                  >
+                    {formatDuration(currentTime)}
+                  </div>
+
+                  {threads.map((thread) => (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      className={clsx(
+                        'absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-[3px] border-surface-950 transition-transform',
+                        thread.resolved ? 'bg-surface-500' : 'bg-amber-400',
+                        activeThreadId === thread.id && 'scale-125 ring-2 ring-white/70'
+                      )}
+                      style={{ left: `calc(${duration ? (thread.timecode / duration) * 100 : 0}% - 8px)` }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setActiveThreadId(thread.id);
+                        setDraftTimecode(null);
+                        seekTo(thread.timecode);
+                      }}
+                      title={`${thread.timecodeLabel} · ${thread.previewText}`}
+                    />
+                  ))}
+
+                  {draftTimecode != null ? (
+                    <div
+                      className="absolute top-1/2 h-10 w-[3px] -translate-y-1/2 rounded-full bg-white/95"
+                      style={{ left: `calc(${duration ? (draftTimecode / duration) * 100 : 0}% - 2px)` }}
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button size="sm" variant="secondary" onClick={togglePlay}>
+                    {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                  </Button>
+                  <div className="text-sm text-surface-300">
+                    {formatDuration(currentTime)} / {formatDuration(duration)}
+                  </div>
+                  <select
+                    value={playbackRate}
+                    onChange={(event) => {
+                      const nextRate = Number(event.target.value);
+                      setPlaybackRate(nextRate);
+                      if (mediaRef.current) {
+                        mediaRef.current.playbackRate = nextRate;
+                      }
+                    }}
+                    className="rounded-lg bg-surface-900 px-2 py-1 text-sm text-surface-200"
+                  >
+                    <option value="0.5">0.5x</option>
+                    <option value="1">1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                  </select>
+                  <button type="button" className="rounded-lg p-2 text-surface-300 hover:bg-surface-900" onClick={toggleMute}>
                     {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
                   </button>
                   <input
@@ -410,213 +602,192 @@ export default function ReviewPage() {
                     max="1"
                     step="0.05"
                     value={muted ? 0 : volume}
-                    onChange={changeVolume}
-                    className="h-1 w-16 accent-brand-500"
+                    onChange={handleVolumeChange}
+                    className="w-24 accent-brand-500"
                   />
+                  <button
+                    type="button"
+                    className="rounded-lg p-2 text-surface-300 hover:bg-surface-900"
+                    onClick={() => mediaRef.current?.requestFullscreen?.()}
+                  >
+                    <Maximize2 size={16} />
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => videoRef.current?.requestFullscreen?.()}
-                  className="p-1 text-surface-400 hover:text-white"
-                >
-                  <Maximize size={16} />
-                </button>
               </div>
+            ) : (
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 px-4 py-3 text-sm text-surface-300">
+                {mediaType === 'image'
+                  ? '图片素材不显示时间轴，你仍然可以在右侧记录评审意见。'
+                  : '当前素材暂无可用时间轴。'}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <aside className="rounded-[26px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
+        <div className="border-b border-surface-200 px-5 py-5 dark:border-surface-800">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-surface-500 dark:text-surface-400">批注线程</p>
+              <h3 className="mt-1 text-lg font-semibold">时间点与讨论</h3>
+            </div>
+            <Badge variant={unresolvedCount ? 'warning' : 'success'}>
+              {unresolvedCount ? `${unresolvedCount} 个待处理` : '已清空'}
+            </Badge>
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前位置</p>
+            <p className="mt-2 text-sm font-medium">{formatTimecode(selectedTimecode || 0)}</p>
+            <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
+              {activeThread ? '正在回复已存在线程。' : '你可以基于当前时间点创建新线程。'}
+            </p>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setActiveThreadId(null);
+                setDraftTimecode(currentTime);
+              }}
+            >
+              在当前时间点发起批注
+            </Button>
+            {activeThread ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setActiveThreadId(null);
+                  setDraftTimecode(currentTime);
+                }}
+              >
+                切换为新线程
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-b border-surface-200 px-5 py-4 dark:border-surface-800">
+          <div className="space-y-3">
+            <Textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder={activeThread ? '回复这个线程' : `在 ${formatDuration(selectedTimecode || 0)} 创建新线程`}
+              className="min-h-[96px]"
+            />
+            <div className="flex justify-end">
+              <Button
+                leftIcon={Send}
+                onClick={handleSubmit}
+                loading={createThreadMutation.isPending || addCommentMutation.isPending}
+                disabled={!message.trim()}
+              >
+                发送
+              </Button>
             </div>
           </div>
         </div>
 
-        <div className="flex w-80 flex-shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
-          <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-800">
-            <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">
-              标注与评论
-              <span className="ml-1.5 text-xs font-normal text-surface-400">
-                ({orderedThreads.filter((thread) => !thread.resolved).length})
-              </span>
-            </h3>
+        <div className="overflow-y-visible md:max-h-[calc(100vh-18rem)] md:overflow-y-auto">
+          {threadsQuery.isLoading ? (
+            <ThreadListSkeleton />
+          ) : threads.length === 0 ? (
+            <EmptyState
+              icon={MessageSquare}
+              compact
+              title="还没有批注"
+              description="在时间轴上定位后输入意见，就会生成第一条评审线程。"
+            />
+          ) : (
+            <div className="divide-y divide-surface-200 dark:divide-surface-800">
+              {threads.map((thread) => (
+                <div
+                  key={thread.id}
+                  className={clsx(
+                    'border-l-2 px-5 py-4 transition-colors',
+                    activeThreadId === thread.id
+                      ? 'border-l-brand-500 bg-brand-50/70 dark:bg-brand-900/10'
+                      : thread.resolved
+                        ? 'border-l-surface-200 hover:bg-surface-50 dark:border-l-surface-800 dark:hover:bg-surface-950'
+                        : 'border-l-amber-400/80 hover:bg-surface-50 dark:hover:bg-surface-950'
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      setActiveThreadId(thread.id);
+                      setDraftTimecode(null);
+                      if (duration) {
+                        seekTo(thread.timecode);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-mono text-xs text-surface-500 dark:text-surface-400">{formatTimecode(thread.timecode)}</p>
+                      <Badge variant={thread.resolved ? 'success' : 'warning'}>
+                        {thread.resolved ? '已解决' : '待处理'}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm font-medium leading-6">{thread.previewText}</p>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
+                      <Avatar src={thread.author?.avatar} name={thread.author?.name} size="xs" />
+                      <span>{thread.author?.name || '匿名成员'}</span>
+                      <span>·</span>
+                      <span>{thread.commentCount} 条消息</span>
+                    </div>
+                  </button>
 
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-surface-500">
-              <input
-                type="checkbox"
-                checked={showThreads}
-                onChange={(event) => setShowThreads(event.target.checked)}
-                className="h-3.5 w-3.5 rounded border-surface-300 text-brand-600"
-              />
-              显示标注
-            </label>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {threadsLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner size="sm" />
-              </div>
-            ) : !orderedThreads.length ? (
-              <EmptyState
-                icon={MessageSquare}
-                title="暂无标注"
-                description="点击“添加标注”后在时间轴上点击，或直接添加带时间点的评论。"
-              />
-            ) : (
-              <div>
-                {activeThread && (
-                  <div className="border-b border-surface-200 bg-brand-50/50 dark:border-surface-800 dark:bg-brand-900/10">
-                    <div className="px-4 py-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="font-mono text-xs font-medium text-brand-600 dark:text-brand-400">
-                          {formatDuration(activeThread.timecode || 0)}
-                        </span>
-
-                        {activeThread.id && !activeThread.resolved && (
-                          <button
-                            onClick={() => resolveMutation.mutate(activeThread.id)}
-                            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
-                          >
-                            <Check size={12} />
-                            标记已解决
-                          </button>
-                        )}
-
-                        {activeThread.resolved && (
-                          <Badge variant="success" dot>已解决</Badge>
-                        )}
-                      </div>
-
-                      {activeThread.content && (
-                        <p className="mb-2 text-sm text-surface-700 dark:text-surface-300">
-                          {activeThread.content}
-                        </p>
-                      )}
-
-                      {activeThread.user && (
-                        <div className="flex items-center gap-1.5 text-xs text-surface-500">
-                          <Avatar src={activeThread.user.avatar} name={activeThread.user.name} size="xs" />
-                          {activeThread.user.name}
-                        </div>
-                      )}
-
-                      {activeThread.comments?.map((comment) => (
-                        <div key={comment.id} className="mt-2 border-t border-surface-200 pt-2 dark:border-surface-800">
-                          <div className="flex items-start gap-2">
-                            <Avatar src={comment.user?.avatar} name={comment.user?.name} size="xs" />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-medium text-surface-700 dark:text-surface-300">
-                                  {comment.user?.name}
-                                </span>
-                              </div>
-                              <p className="mt-0.5 text-sm text-surface-600 dark:text-surface-400">
-                                {comment.content}
-                              </p>
+                  {activeThreadId === thread.id ? (
+                    <div className="mt-4 space-y-3 rounded-2xl border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900">
+                      {thread.comments.map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar src={comment.user?.avatar} name={comment.user?.name} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium">{comment.user?.name || '成员'}</span>
+                              <span className="text-xs text-surface-400">
+                                {comment.createdAt ? new Date(comment.createdAt).toLocaleString('zh-CN') : ''}
+                              </span>
                             </div>
+                            <p className="mt-1 text-sm leading-6 text-surface-600 dark:text-surface-300">{comment.body}</p>
                           </div>
                         </div>
                       ))}
 
-                      <div className="mt-2 flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="回复..."
-                          value={commentText}
-                          onChange={(event) => setCommentText(event.target.value)}
-                          onKeyDown={(event) => event.key === 'Enter' && handleSubmitComment()}
-                          className="flex-1 rounded-lg border border-surface-300 bg-white px-3 py-1.5 text-sm placeholder:text-surface-400 focus:border-brand-500 focus:outline-none dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={handleSubmitComment}
-                          disabled={!commentText.trim()}
-                          loading={addCommentMutation.isPending || createThreadMutation.isPending}
-                          leftIcon={Send}
-                          className="h-8"
-                        >
-                          发送
-                        </Button>
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {thread.resolved ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            leftIcon={RefreshCw}
+                            onClick={() => reopenThreadMutation.mutate(thread.id)}
+                          >
+                            重新打开
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            leftIcon={Check}
+                            onClick={() => resolveThreadMutation.mutate(thread.id)}
+                          >
+                            标记已解决
+                          </Button>
+                        )}
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => setActiveThread(null)}
-                      className="w-full border-t border-surface-200 px-4 py-1.5 text-center text-xs text-surface-500 hover:text-surface-700 dark:border-surface-800"
-                    >
-                      收起
-                    </button>
-                  </div>
-                )}
-
-                {orderedThreads.map((thread) => (
-                  <div
-                    key={thread.id}
-                    className={clsx(
-                      'cursor-pointer border-b border-surface-100 px-4 py-3 transition-colors hover:bg-surface-50 dark:border-surface-800 dark:hover:bg-surface-800/50',
-                      activeThread?.id === thread.id && 'bg-brand-50/30 dark:bg-brand-900/10',
-                      thread.resolved && 'opacity-60'
-                    )}
-                    onClick={() => handleThreadClick(thread)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="flex-shrink-0 font-mono text-xs text-surface-500 dark:text-surface-400">
-                        {formatDuration(thread.timecode || 0)}
-                      </span>
-                      <span
-                        className={clsx(
-                          'truncate text-sm',
-                          thread.resolved
-                            ? 'text-surface-400 line-through'
-                            : 'text-surface-700 dark:text-surface-300'
-                        )}
-                      >
-                        {getThreadSummary(thread)}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 flex items-center gap-2">
-                      {thread.user && (
-                        <div className="flex items-center gap-1 text-[10px] text-surface-400">
-                          <Avatar name={thread.user.name} size="xs" />
-                          {thread.user.name}
-                        </div>
-                      )}
-
-                      {thread.comments?.length > 0 && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-surface-400">
-                          <MessageSquare size={10} />
-                          {thread.comments.length}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {!activeThread && (
-            <div className="border-t border-surface-200 px-4 py-3 dark:border-surface-800">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder={`在 ${formatDuration(currentTime)} 添加评论...`}
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  onKeyDown={(event) => event.key === 'Enter' && handleSubmitComment()}
-                  className="flex-1 rounded-lg border border-surface-300 bg-white px-3 py-1.5 text-sm placeholder:text-surface-400 focus:border-brand-500 focus:outline-none dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSubmitComment}
-                  disabled={!commentText.trim()}
-                  loading={createThreadMutation.isPending}
-                  leftIcon={Send}
-                  className="h-8"
-                >
-                  发送
-                </Button>
-              </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

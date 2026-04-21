@@ -1,72 +1,76 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  listWorkspaceMembers, listWorkspaceInvites, inviteToWorkspace,
-  removeWorkspaceMember, updateMemberRole, cancelWorkspaceInvite,
+  cancelWorkspaceInvite,
+  inviteToWorkspace,
+  listWorkspaceInvites,
+  listWorkspaceMembers,
+  removeWorkspaceMember,
+  updateMemberRole,
 } from '../api/workspaces';
 import Avatar from '../components/ui/Avatar';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import Table, { Head, Body, Row, HeaderCell, Cell } from '../components/ui/Table';
-import Spinner from '../components/ui/Spinner';
 import EmptyState from '../components/ui/EmptyState';
-import { formatRelativeTime, getInitials } from '../lib/utils';
-import { UserPlus, Shield, Users as UsersIcon, Mail, X, Crown } from 'lucide-react';
-import clsx from 'clsx';
+import Input from '../components/ui/Input';
+import Skeleton from '../components/ui/Skeleton';
+import Table, { Body, Cell, Head, HeaderCell, Row } from '../components/ui/Table';
+import { formatRelativeTime } from '../lib/utils';
 
-const roleLabels = {
-  owner: { label: '所有者', variant: 'primary' },
+const roleMeta = {
+  owner: { label: '所有者', variant: 'brand' },
   admin: { label: '管理员', variant: 'info' },
-  editor: { label: '编辑者', variant: 'default' },
+  editor: { label: '编辑', variant: 'default' },
   viewer: { label: '查看者', variant: 'default' },
 };
 
+function SettingsTableSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-24 w-full rounded-[26px]" />
+      <Skeleton className="h-80 w-full rounded-[26px]" />
+    </div>
+  );
+}
+
 export default function WorkspaceSettingsPage() {
   const { workspaceId } = useParams();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('members');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
   const [inviteError, setInviteError] = useState('');
-  const [activeTab, setActiveTab] = useState('members');
-  const queryClient = useQueryClient();
 
-  const { data: members, isLoading: membersLoading } = useQuery({
+  const membersQuery = useQuery({
     queryKey: ['workspace-members', workspaceId],
     queryFn: async () => {
-      const res = await listWorkspaceMembers(workspaceId);
-      return res.data?.data || res.data || [];
+      const response = await listWorkspaceMembers(workspaceId);
+      return response.data?.members || response.data?.data || response.data || [];
     },
-    enabled: !!workspaceId,
+    enabled: Boolean(workspaceId),
   });
 
-  const { data: invites, isLoading: invitesLoading } = useQuery({
+  const invitesQuery = useQuery({
     queryKey: ['workspace-invites', workspaceId],
     queryFn: async () => {
-      const res = await listWorkspaceInvites(workspaceId);
-      return res.data?.data || res.data || [];
+      const response = await listWorkspaceInvites(workspaceId);
+      return response.data?.invites || response.data?.members || response.data?.data || response.data || [];
     },
-    enabled: !!workspaceId && activeTab === 'invites',
+    enabled: Boolean(workspaceId) && activeTab === 'invites',
   });
 
   const inviteMutation = useMutation({
-    mutationFn: () => {
-      setInviteError('');
-      if (!inviteEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)) {
-        setInviteError('请输入有效的邮箱地址');
-        throw new Error('invalid');
-      }
-      return inviteToWorkspace(workspaceId, { email: inviteEmail, role: inviteRole });
-    },
+    mutationFn: () => inviteToWorkspace(workspaceId, { email: inviteEmail.trim(), role: inviteRole }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspace-invites', workspaceId] });
       queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['workspace-invites', workspaceId] });
       setInviteEmail('');
+      setInviteRole('viewer');
+      setInviteError('');
     },
-    onError: (err) => {
-      if (err.message !== 'invalid') {
-        setInviteError(err.response?.data?.message || '邀请失败');
-      }
+    onError: (error) => {
+      setInviteError(error.response?.data?.message || '邀请发送失败，请稍后再试。');
     },
   });
 
@@ -91,237 +95,210 @@ export default function WorkspaceSettingsPage() {
     },
   });
 
-  const currentUserId = members?.find((m) => m.role === 'owner')?.id;
+  const members = membersQuery.data || [];
+  const invites = invitesQuery.data || [];
+  const ownerId = useMemo(() => members.find((member) => member.role === 'owner')?.id, [members]);
+
+  if (membersQuery.isLoading || (activeTab === 'invites' && invitesQuery.isLoading)) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <SettingsTableSkeleton />
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* Breadcrumb */}
-      <div className="mb-4 text-sm text-surface-500 dark:text-surface-400">
-        <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">工作台</Link>
-        <span className="mx-1.5">/</span>
-        <Link to={`/w/${workspaceId}`} className="hover:text-brand-600 dark:hover:text-brand-400">
-          工作区
-        </Link>
-        <span className="mx-1.5">/</span>
-        <span className="text-surface-900 dark:text-surface-100">设置</span>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
+        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">工作区设置</p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight">成员、邀请与协作权限</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
+          这里不扩展新的后端协议，只把现有成员和邀请接口收束成稳定、可读、可操作的设置页。
+        </p>
 
-      <h1 className="mb-6 text-2xl font-bold text-surface-900 dark:text-surface-100">工作区设置</h1>
-
-      {/* Tabs */}
-      <div className="mb-6 flex gap-4 border-b border-surface-200 dark:border-surface-800">
-        {[
-          { key: 'members', label: '成员', count: members?.length },
-          { key: 'invites', label: '邀请', count: invites?.length },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={clsx(
-              'relative px-4 py-2.5 text-sm font-medium transition-colors',
-              activeTab === tab.key
-                ? 'text-brand-600 dark:text-brand-400'
-                : 'text-surface-500 hover:text-surface-700 dark:text-surface-400'
-            )}
-          >
-            {tab.label}
-            {tab.count !== undefined && (
-              <span className={clsx(
-                'ml-1.5 rounded-full px-1.5 py-0.5 text-xs',
+        <div className="mt-6 flex flex-wrap gap-2">
+          {[
+            { key: 'members', label: '成员', count: members.length },
+            { key: 'invites', label: '邀请', count: invites.length },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={
                 activeTab === tab.key
-                  ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-                  : 'bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400'
-              )}>
-                {tab.count}
-              </span>
-            )}
-            {activeTab === tab.key && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-brand-600 dark:bg-brand-400 rounded-full" />
-            )}
-          </button>
-        ))}
-      </div>
+                  ? 'rounded-full bg-surface-900 px-4 py-2 text-sm text-white dark:bg-surface-100 dark:text-surface-900'
+                  : 'rounded-full bg-surface-100 px-4 py-2 text-sm text-surface-600 dark:bg-surface-800 dark:text-surface-300'
+              }
+            >
+              {tab.label} {tab.count ? `(${tab.count})` : ''}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      {/* Members tab */}
-      {activeTab === 'members' && (
-        <div>
-          {/* Invite form */}
-          <div className="mb-6 flex items-end gap-3">
-            <div className="flex-1">
+      {activeTab === 'members' ? (
+        <>
+          <section className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_auto]">
               <Input
                 label="邀请成员"
                 type="email"
-                placeholder="输入邮箱地址"
+                placeholder="输入成员邮箱"
                 value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                leftIcon={Mail}
+                onChange={(event) => setInviteEmail(event.target.value)}
                 error={inviteError}
               />
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-surface-700 dark:text-surface-300">角色</label>
+                <select
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value)}
+                  className="h-[42px] w-full rounded-lg border border-surface-300 bg-white px-3 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                >
+                  <option value="admin">管理员</option>
+                  <option value="editor">编辑</option>
+                  <option value="viewer">查看者</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  fullWidth
+                  onClick={() => {
+                    if (!inviteEmail.trim()) {
+                      setInviteError('请输入要邀请的邮箱。');
+                      return;
+                    }
+                    setInviteError('');
+                    inviteMutation.mutate();
+                  }}
+                  loading={inviteMutation.isPending}
+                >
+                  发送邀请
+                </Button>
+              </div>
             </div>
-            <div className="w-32">
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                className="h-9 w-full rounded-lg border border-surface-300 bg-white px-3 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
-              >
-                <option value="admin">管理员</option>
-                <option value="editor">编辑者</option>
-                <option value="viewer">查看者</option>
-              </select>
-            </div>
-            <Button
-              leftIcon={UserPlus}
-              onClick={() => inviteMutation.mutate()}
-              loading={inviteMutation.isPending}
-            >
-              邀请
-            </Button>
-          </div>
+          </section>
 
-          {/* Members list */}
-          {membersLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner text="加载成员..." />
-            </div>
-          ) : members?.length === 0 ? (
-            <EmptyState
-              icon={UsersIcon}
-              title="还没有成员"
-              description="邀请成员加入工作区"
-            />
-          ) : (
-            <Table>
-              <Head>
-                <Row>
-                  <HeaderCell>成员</HeaderCell>
-                  <HeaderCell>角色</HeaderCell>
-                  <HeaderCell>加入时间</HeaderCell>
-                  <HeaderCell className="w-20">操作</HeaderCell>
-                </Row>
-              </Head>
-              <Body>
-                {members.map((member) => {
-                  const roleInfo = roleLabels[member.role] || roleLabels.viewer;
-                  const isOwner = member.role === 'owner';
-                  return (
-                    <Row key={member.id}>
-                      <Cell>
-                        <div className="flex items-center gap-3">
-                          <Avatar src={member.avatar} name={member.name} size="sm" />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-surface-900 dark:text-surface-100">
-                                {member.name}
-                              </span>
-                              {isOwner && <Crown size={12} className="text-amber-500" />}
+          <section className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+            {members.length === 0 ? (
+              <EmptyState
+                title="还没有成员"
+                description="工作区成员会显示在这里，项目和审阅协作都基于这些成员展开。"
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <Head>
+                    <Row>
+                      <HeaderCell>成员</HeaderCell>
+                      <HeaderCell>角色</HeaderCell>
+                      <HeaderCell>加入时间</HeaderCell>
+                      <HeaderCell className="w-[180px]">操作</HeaderCell>
+                    </Row>
+                  </Head>
+                  <Body>
+                    {members.map((member) => {
+                      const meta = roleMeta[member.role] || roleMeta.viewer;
+                      const isOwner = member.id === ownerId;
+
+                      return (
+                        <Row key={member.id}>
+                          <Cell>
+                            <div className="flex items-center gap-3">
+                              <Avatar src={member.avatar} name={member.name} size="sm" />
+                              <div>
+                                <p className="text-sm font-medium">{member.name}</p>
+                                <p className="text-xs text-surface-500 dark:text-surface-400">{member.email}</p>
+                              </div>
                             </div>
-                            <span className="text-xs text-surface-500 dark:text-surface-400">
-                              {member.email}
-                            </span>
-                          </div>
-                        </div>
-                      </Cell>
-                      <Cell>
-                        {isOwner ? (
-                          <Badge variant={roleInfo.variant}>{roleInfo.label}</Badge>
-                        ) : (
-                          <select
-                            value={member.role}
-                            onChange={(e) => updateRoleMutation.mutate({ userId: member.id, role: e.target.value })}
-                            className="rounded-md border border-surface-200 bg-surface-50 px-2 py-1 text-xs dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
-                          >
-                            <option value="admin">管理员</option>
-                            <option value="editor">编辑者</option>
-                            <option value="viewer">查看者</option>
-                          </select>
-                        )}
-                      </Cell>
-                      <Cell>
-                        <span className="text-xs text-surface-500">
-                          {member.created_at ? formatRelativeTime(member.created_at) : '-'}
-                        </span>
-                      </Cell>
-                      <Cell>
-                        {!isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (window.confirm(`确定要移除「${member.name}」吗？`)) {
-                                removeMemberMutation.mutate(member.id);
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          >
-                            移除
-                          </Button>
-                        )}
-                      </Cell>
-                    </Row>
-                  );
-                })}
-              </Body>
-            </Table>
-          )}
-        </div>
-      )}
-
-      {/* Invites tab */}
-      {activeTab === 'invites' && (
-        <div>
-          {invitesLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner text="加载邀请..." />
-            </div>
-          ) : invites?.length === 0 ? (
+                          </Cell>
+                          <Cell>
+                            {isOwner ? (
+                              <Badge variant={meta.variant}>{meta.label}</Badge>
+                            ) : (
+                              <select
+                                value={member.role}
+                                onChange={(event) => updateRoleMutation.mutate({ userId: member.id, role: event.target.value })}
+                                className="rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                              >
+                                <option value="admin">管理员</option>
+                                <option value="editor">编辑</option>
+                                <option value="viewer">查看者</option>
+                              </select>
+                            )}
+                          </Cell>
+                          <Cell>{formatRelativeTime(member.created_at || member.createdAt)}</Cell>
+                          <Cell>
+                            {isOwner ? (
+                              <span className="text-sm text-surface-400">所有者不可移除</span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (window.confirm(`确定移除成员“${member.name}”吗？`)) {
+                                    removeMemberMutation.mutate(member.id);
+                                  }
+                                }}
+                              >
+                                移除成员
+                              </Button>
+                            )}
+                          </Cell>
+                        </Row>
+                      );
+                    })}
+                  </Body>
+                </Table>
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <section className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+          {invites.length === 0 ? (
             <EmptyState
-              icon={Mail}
-              title="没有待处理的邀请"
-              description="邀请成员将显示在这里"
+              title="没有待处理邀请"
+              description="新的邀请发出后，会在这里显示对应的待加入记录。"
             />
           ) : (
-            <Table>
-              <Head>
-                <Row>
-                  <HeaderCell>邮箱</HeaderCell>
-                  <HeaderCell>角色</HeaderCell>
-                  <HeaderCell>邀请时间</HeaderCell>
-                  <HeaderCell className="w-20">操作</HeaderCell>
-                </Row>
-              </Head>
-              <Body>
-                {invites.map((invite) => {
-                  const roleInfo = roleLabels[invite.role] || roleLabels.viewer;
-                  return (
-                    <Row key={invite.id}>
-                      <Cell>
-                        <span className="text-sm">{invite.email}</span>
-                      </Cell>
-                      <Cell>
-                        <Badge variant={roleInfo.variant}>{roleInfo.label}</Badge>
-                      </Cell>
-                      <Cell>
-                        <span className="text-xs text-surface-500">
-                          {invite.created_at ? formatRelativeTime(invite.created_at) : '-'}
-                        </span>
-                      </Cell>
-                      <Cell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => cancelInviteMutation.mutate(invite.id)}
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        >
-                          撤销
-                        </Button>
-                      </Cell>
-                    </Row>
-                  );
-                })}
-              </Body>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                <Head>
+                  <Row>
+                    <HeaderCell>邮箱 / 成员</HeaderCell>
+                    <HeaderCell>角色</HeaderCell>
+                    <HeaderCell>发起时间</HeaderCell>
+                    <HeaderCell className="w-[180px]">操作</HeaderCell>
+                  </Row>
+                </Head>
+                <Body>
+                  {invites.map((invite) => {
+                    const meta = roleMeta[invite.role] || roleMeta.viewer;
+                    return (
+                      <Row key={invite.id}>
+                        <Cell>
+                          <div>
+                            <p className="text-sm font-medium">{invite.email || invite.name || '待加入成员'}</p>
+                            {invite.name ? <p className="text-xs text-surface-500 dark:text-surface-400">{invite.name}</p> : null}
+                          </div>
+                        </Cell>
+                        <Cell><Badge variant={meta.variant}>{meta.label}</Badge></Cell>
+                        <Cell>{formatRelativeTime(invite.created_at || invite.createdAt)}</Cell>
+                        <Cell>
+                          <Button size="sm" variant="ghost" onClick={() => cancelInviteMutation.mutate(invite.id)}>
+                            撤销邀请
+                          </Button>
+                        </Cell>
+                      </Row>
+                    );
+                  })}
+                </Body>
+              </Table>
+            </div>
           )}
-        </div>
+        </section>
       )}
     </div>
   );
