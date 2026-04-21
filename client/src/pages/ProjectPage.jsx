@@ -195,13 +195,20 @@ export default function ProjectPage() {
   }, [sortedAssets, filterType]);
 
   const isLoading = projLoading || assetsLoading;
+  const formatStatusLabel = (status) => {
+    if (status === 'ready') return '就绪';
+    if (status === 'processing') return '处理中';
+    if (status === 'failed') return '处理失败';
+    if (status === 'deleted') return '已删除';
+    return status || '-';
+  };
 
   return (
     <div className="flex h-full">
       <div className="w-60 flex-shrink-0 overflow-y-auto border-r border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
         <div className="p-3">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">Folders</h3>
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300">文件夹</h3>
             <Button
               variant="ghost"
               size="sm"
@@ -223,7 +230,7 @@ export default function ProjectPage() {
             onClick={() => setSelectedFolder(null)}
           >
             <FolderPlus size={14} />
-            <span>All files</span>
+            <span>全部文件</span>
           </div>
 
           {foldersLoading ? (
@@ -243,10 +250,10 @@ export default function ProjectPage() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center gap-3 border-b border-surface-200 bg-white px-4 py-3 dark:border-surface-800 dark:bg-surface-900">
           <div className="flex items-center gap-1 text-sm text-surface-500 dark:text-surface-400">
-            <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">Workspace</Link>
+            <Link to="/" className="hover:text-brand-600 dark:hover:text-brand-400">工作台</Link>
             <ChevronRight size={14} />
             <span className="max-w-[200px] truncate font-medium text-surface-900 dark:text-surface-100">
-              {project?.name || 'Project'}
+              {project?.name || '项目'}
             </span>
           </div>
 
@@ -256,10 +263,10 @@ export default function ProjectPage() {
               onChange={(e) => setFilterType(e.target.value)}
               className="h-8 rounded-lg border border-surface-300 bg-white px-2 text-xs dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
             >
-              <option value="all">All types</option>
-              <option value="video">Video</option>
-              <option value="image">Image</option>
-              <option value="audio">Audio</option>
+              <option value="all">全部类型</option>
+              <option value="video">视频</option>
+              <option value="image">图片</option>
+              <option value="audio">音频</option>
             </select>
 
             <select
@@ -271,12 +278,12 @@ export default function ProjectPage() {
               }}
               className="h-8 rounded-lg border border-surface-300 bg-white px-2 text-xs dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300"
             >
-              <option value="updated_at-desc">Recently updated</option>
-              <option value="updated_at-asc">Oldest updated</option>
-              <option value="name-asc">Name A-Z</option>
-              <option value="name-desc">Name Z-A</option>
-              <option value="size-desc">Largest first</option>
-              <option value="size-asc">Smallest first</option>
+              <option value="updated_at-desc">最近更新</option>
+              <option value="updated_at-asc">最早更新</option>
+              <option value="name-asc">名称 A-Z</option>
+              <option value="name-desc">名称 Z-A</option>
+              <option value="size-desc">大小（大→小）</option>
+              <option value="size-asc">大小（小→大）</option>
             </select>
 
             <div className="flex rounded-lg border border-surface-200 dark:border-surface-700">
@@ -309,7 +316,7 @@ export default function ProjectPage() {
               leftIcon={Upload}
               onClick={() => navigate(`/project/${projectId}/upload`)}
             >
-              Upload
+              上传
             </Button>
           </div>
         </div>
@@ -317,22 +324,22 @@ export default function ProjectPage() {
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
             <div className="flex h-full items-center justify-center">
-              <Spinner size="lg" text="Loading assets..." />
+              <Spinner size="lg" text="加载资源..." />
             </div>
           ) : assetsError ? (
             <EmptyState
               icon={Film}
-              title="Could not load assets"
-              description="Please try again in a moment."
+              title="资源加载失败"
+              description="请稍后再试。"
             />
           ) : filteredAssets.length === 0 ? (
             <EmptyState
               icon={Film}
-              title="No assets yet"
-              description="Upload files into this project to get started."
+              title="还没有资源"
+              description="上传文件到这个项目中"
               action={(
                 <Button leftIcon={Upload} onClick={() => navigate(`/project/${projectId}/upload`)}>
-                  Upload files
+                  上传文件
                 </Button>
               )}
             />
@@ -381,7 +388,7 @@ export default function ProjectPage() {
                             variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}
                             dot
                           >
-                            {asset.status}
+                            {formatStatusLabel(asset.status)}
                           </Badge>
                         )}
                       </div>
@@ -391,7 +398,7 @@ export default function ProjectPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Delete this asset?')) {
+                      if (window.confirm('确定删除此资源？')) {
                         deleteAssetMutation.mutate(asset.id);
                       }
                     }}
@@ -406,11 +413,11 @@ export default function ProjectPage() {
             <Table>
               <Head>
                 <Row>
-                  <HeaderCell>Name</HeaderCell>
-                  <HeaderCell>Size</HeaderCell>
-                  <HeaderCell>Duration</HeaderCell>
-                  <HeaderCell>Status</HeaderCell>
-                  <HeaderCell>Updated</HeaderCell>
+                  <HeaderCell>名称</HeaderCell>
+                  <HeaderCell>大小</HeaderCell>
+                  <HeaderCell>时长</HeaderCell>
+                  <HeaderCell>状态</HeaderCell>
+                  <HeaderCell>更新时间</HeaderCell>
                   <HeaderCell className="w-16" />
                 </Row>
               </Head>
@@ -442,7 +449,7 @@ export default function ProjectPage() {
                         variant={asset.status === 'ready' ? 'success' : asset.status === 'processing' ? 'warning' : 'default'}
                         dot
                       >
-                        {asset.status || '-'}
+                        {formatStatusLabel(asset.status)}
                       </Badge>
                     </Cell>
                     <Cell>
@@ -452,7 +459,7 @@ export default function ProjectPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm('Delete this asset?')) {
+                          if (window.confirm('确定删除此资源？')) {
                             deleteAssetMutation.mutate(asset.id);
                           }
                         }}
@@ -475,7 +482,7 @@ export default function ProjectPage() {
           setShowCreateFolder(false);
           setNewFolderName('');
         }}
-        title="Create folder"
+        title="新建文件夹"
         size="sm"
       >
         <form
@@ -487,7 +494,7 @@ export default function ProjectPage() {
           className="space-y-4"
         >
           <Input
-            placeholder="Folder name"
+            placeholder="文件夹名称"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             autoFocus
@@ -500,10 +507,10 @@ export default function ProjectPage() {
                 setNewFolderName('');
               }}
             >
-              Cancel
+              取消
             </Button>
             <Button type="submit" loading={createFolderMutation.isPending}>
-              Create
+              创建
             </Button>
           </div>
         </form>

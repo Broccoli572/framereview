@@ -137,6 +137,7 @@ export default function ReviewPage() {
   );
 
   const videoUrl = resolveMediaUrl(asset, versions, selectedVersion);
+  const getThreadSummary = (thread) => thread.content || '标注';
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -264,7 +265,7 @@ export default function ReviewPage() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Spinner size="lg" text="Loading review..." />
+        <Spinner size="lg" text="加载审阅页面..." />
       </div>
     );
   }
@@ -281,7 +282,7 @@ export default function ReviewPage() {
 
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold text-surface-900 dark:text-surface-100">
-            {asset?.name || 'Review'}
+            {asset?.name || '审阅'}
           </h2>
         </div>
 
@@ -292,7 +293,7 @@ export default function ReviewPage() {
           className={clsx(commentMode && 'bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400')}
           leftIcon={MessageSquare}
         >
-          {commentMode ? 'Cancel marker' : 'Add marker'}
+          {commentMode ? '取消标注' : '添加标注'}
         </Button>
       </div>
 
@@ -315,7 +316,7 @@ export default function ReviewPage() {
             ) : (
               <div className="flex flex-col items-center gap-3 text-surface-400">
                 <Film size={48} />
-                <p className="text-sm">Preview not available yet</p>
+                <p className="text-sm">预览暂不可用</p>
               </div>
             )}
 
@@ -360,7 +361,7 @@ export default function ReviewPage() {
                     event.stopPropagation();
                     handleThreadClick(thread);
                   }}
-                  title={`${formatDuration(thread.timecode || 0)} - ${thread.content || 'Comment thread'}`}
+                  title={`${formatDuration(thread.timecode || 0)} - ${getThreadSummary(thread)}`}
                 />
               ))}
 
@@ -428,7 +429,7 @@ export default function ReviewPage() {
         <div className="flex w-80 flex-shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-900">
           <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-800">
             <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">
-              Comments
+              标注与评论
               <span className="ml-1.5 text-xs font-normal text-surface-400">
                 ({orderedThreads.filter((thread) => !thread.resolved).length})
               </span>
@@ -441,7 +442,7 @@ export default function ReviewPage() {
                 onChange={(event) => setShowThreads(event.target.checked)}
                 className="h-3.5 w-3.5 rounded border-surface-300 text-brand-600"
               />
-              Show markers
+              显示标注
             </label>
           </div>
 
@@ -453,8 +454,8 @@ export default function ReviewPage() {
             ) : !orderedThreads.length ? (
               <EmptyState
                 icon={MessageSquare}
-                title="No comments yet"
-                description="Add a marker on the timeline or leave a timestamped comment."
+                title="暂无标注"
+                description="点击“添加标注”后在时间轴上点击，或直接添加带时间点的评论。"
               />
             ) : (
               <div>
@@ -472,12 +473,12 @@ export default function ReviewPage() {
                             className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
                           >
                             <Check size={12} />
-                            Resolve
+                            标记已解决
                           </button>
                         )}
 
                         {activeThread.resolved && (
-                          <Badge variant="success" dot>Resolved</Badge>
+                          <Badge variant="success" dot>已解决</Badge>
                         )}
                       </div>
 
@@ -515,7 +516,7 @@ export default function ReviewPage() {
                       <div className="mt-2 flex items-center gap-2">
                         <input
                           type="text"
-                          placeholder="Reply..."
+                          placeholder="回复..."
                           value={commentText}
                           onChange={(event) => setCommentText(event.target.value)}
                           onKeyDown={(event) => event.key === 'Enter' && handleSubmitComment()}
@@ -529,7 +530,7 @@ export default function ReviewPage() {
                           leftIcon={Send}
                           className="h-8"
                         >
-                          Send
+                          发送
                         </Button>
                       </div>
                     </div>
@@ -538,7 +539,7 @@ export default function ReviewPage() {
                       onClick={() => setActiveThread(null)}
                       className="w-full border-t border-surface-200 px-4 py-1.5 text-center text-xs text-surface-500 hover:text-surface-700 dark:border-surface-800"
                     >
-                      Close
+                      收起
                     </button>
                   </div>
                 )}
@@ -565,7 +566,7 @@ export default function ReviewPage() {
                             : 'text-surface-700 dark:text-surface-300'
                         )}
                       >
-                        {thread.content || 'Comment thread'}
+                        {getThreadSummary(thread)}
                       </span>
                     </div>
 
@@ -595,7 +596,7 @@ export default function ReviewPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder={`Add a comment at ${formatDuration(currentTime)}...`}
+                  placeholder={`在 ${formatDuration(currentTime)} 添加评论...`}
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && handleSubmitComment()}
@@ -609,7 +610,7 @@ export default function ReviewPage() {
                   leftIcon={Send}
                   className="h-8"
                 >
-                  Send
+                  发送
                 </Button>
               </div>
             </div>
