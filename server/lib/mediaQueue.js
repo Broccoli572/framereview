@@ -5,6 +5,12 @@ const QUEUE_NAME = 'media-processing';
 
 function createRedisConnection() {
   const redisUrl = process.env.REDIS_URL;
+  const redisHost = process.env.REDIS_HOST;
+
+  if (!redisUrl && !redisHost) {
+    return null;
+  }
+
   const baseOptions = {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
@@ -24,6 +30,8 @@ function createRedisConnection() {
 }
 
 async function closeRedisConnection(connection) {
+  if (!connection) return;
+
   try {
     await connection.quit();
   } catch {
@@ -33,6 +41,15 @@ async function closeRedisConnection(connection) {
 
 export async function enqueueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type }) {
   const connection = createRedisConnection();
+
+  if (!connection) {
+    throw new Error('Redis queue is not configured');
+  }
+
+  connection.on('error', (error) => {
+    console.error('[Queue] Redis connection error:', error?.message || error);
+  });
+
   const queue = new Queue(QUEUE_NAME, { connection });
 
   try {
