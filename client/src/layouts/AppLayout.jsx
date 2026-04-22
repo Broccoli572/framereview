@@ -124,10 +124,10 @@ export default function AppLayout() {
 
   const workflowNav = [
     workspaceQuery.data
-      ? { to: `/w/${workspaceQuery.data.id}`, icon: FolderKanban, label: workspaceQuery.data.name || '工作区' }
+      ? { to: `/w/${workspaceQuery.data.id}`, icon: FolderKanban, label: workspaceQuery.data.name || '当前工作区' }
       : null,
     projectQuery.data
-      ? { to: `/project/${projectQuery.data.id}`, icon: Film, label: projectQuery.data.name || '项目' }
+      ? { to: `/project/${projectQuery.data.id}`, icon: Film, label: projectQuery.data.name || '当前项目' }
       : null,
     projectQuery.data
       ? { to: `/project/${projectQuery.data.id}/upload`, icon: Upload, label: '上传' }
@@ -169,7 +169,7 @@ export default function AppLayout() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">FrameReview</p>
-              <p className="truncate text-xs text-surface-500 dark:text-surface-400">视频审阅</p>
+              <p className="truncate text-xs text-surface-500 dark:text-surface-400">协作审阅</p>
             </div>
           </Link>
 
@@ -195,8 +195,10 @@ export default function AppLayout() {
           </section>
 
           {workflowNav.length ? (
-            <section className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前工作流</p>
+            <section className="space-y-3">
+              <div className="px-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前工作流</p>
+              </div>
               <div className="space-y-1">
                 {workflowNav.map((item) => (
                   <AppNavLink key={item.to} to={item.to} icon={item.icon} label={item.label} />
@@ -214,9 +216,6 @@ export default function AppLayout() {
                 </div>
                 <Badge variant={normalizedAsset.statusVariant}>{normalizedAsset.statusLabel}</Badge>
               </div>
-              <p className="mt-2 text-xs text-surface-500 dark:text-surface-400">
-                {normalizedAsset.durationLabel} · {normalizedAsset.sizeLabel}
-              </p>
             </section>
           ) : null}
         </div>

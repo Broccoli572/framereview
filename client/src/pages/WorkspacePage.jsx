@@ -12,9 +12,8 @@ import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import Skeleton from '../components/ui/Skeleton';
 import Textarea from '../components/ui/Textarea';
+import { DEFAULT_UPLOAD_PROJECT_NAME, ensureWorkspaceUploadTarget } from '../lib/workspace-upload';
 import { formatRelativeTime } from '../lib/utils';
-
-const DEFAULT_UPLOAD_PROJECT_NAME = '素材收件箱';
 
 function normalizeProject(project, workspace) {
   return {
@@ -38,13 +37,6 @@ function WorkspaceSkeleton() {
       </section>
     </div>
   );
-}
-
-function resolveUploadTarget(projects) {
-  const inboxProject = projects.find((project) => project.name === DEFAULT_UPLOAD_PROJECT_NAME);
-  if (inboxProject) return inboxProject;
-  if (projects.length === 1) return projects[0];
-  return null;
 }
 
 export default function WorkspacePage() {
@@ -93,21 +85,7 @@ export default function WorkspacePage() {
   });
 
   const openUploadMutation = useMutation({
-    mutationFn: async () => {
-      const existingProjects = projectsQuery.data || [];
-      const target = resolveUploadTarget(existingProjects);
-
-      if (target) {
-        return target;
-      }
-
-      const response = await client.post(`/workspaces/${workspaceId}/projects`, {
-        name: DEFAULT_UPLOAD_PROJECT_NAME,
-        description: '工作区默认上传入口',
-      });
-
-      return response.data?.data || response.data || null;
-    },
+    mutationFn: () => ensureWorkspaceUploadTarget(workspaceId, projectsQuery.data || []),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: ['workspace-projects', workspaceId] });
       setPageError('');
@@ -152,7 +130,7 @@ export default function WorkspacePage() {
               {workspaceQuery.data?.name || '工作区'}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-              先上传视频开始工作。系统会优先进入默认素材收件箱，后续如果需要更细的整理，再进入项目里新建文件夹分类。
+              先上传视频，素材会先进入默认收件箱。
             </p>
           </div>
 
@@ -162,9 +140,6 @@ export default function WorkspacePage() {
             </Button>
             <Button variant="secondary" leftIcon={Settings2} onClick={() => navigate(`/w/${workspaceId}/settings`)}>
               设置
-            </Button>
-            <Button variant="ghost" leftIcon={Plus} onClick={() => setShowCreateProject(true)}>
-              新建项目
             </Button>
           </div>
         </div>
@@ -195,11 +170,9 @@ export default function WorkspacePage() {
         <EmptyState
           icon={FolderKanban}
           title="直接上传就能开始工作"
-          description="首次上传会自动创建默认素材收件箱。需要独立阶段或分类时，再补建项目或进入项目新建文件夹。"
+          description="首次上传会自动创建默认收件箱。"
           actionLabel="上传视频"
           onAction={handleStartUpload}
-          secondaryActionLabel="新建项目"
-          onSecondaryAction={() => setShowCreateProject(true)}
         />
       ) : (
         <section className="space-y-4">
@@ -207,12 +180,17 @@ export default function WorkspacePage() {
             <div>
               <h3 className="text-lg font-semibold">项目</h3>
               <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-                上传优先走默认收件箱，项目负责承载工作流，文件夹负责细分整理。
+                默认收件箱负责接收上传，独立流程再拆成项目。
               </p>
             </div>
-            <Button variant="secondary" onClick={handleStartUpload} loading={openUploadMutation.isPending}>
-              继续上传
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={handleStartUpload} loading={openUploadMutation.isPending}>
+                继续上传
+              </Button>
+              <Button variant="ghost" leftIcon={Plus} onClick={() => setShowCreateProject(true)}>
+                新建独立项目
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
@@ -271,7 +249,7 @@ export default function WorkspacePage() {
                   </Badge>
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => navigate(`/project/${project.id}`)}>
-                      进入素材
+                      进入项目
                     </Button>
                     <Button size="sm" onClick={() => navigate(`/project/${project.id}/upload`)}>
                       上传
@@ -291,8 +269,8 @@ export default function WorkspacePage() {
           setForm({ name: '', description: '' });
           setFormError('');
         }}
-        title="新建项目"
-        description="项目适合承载单独流程；如果只是先把视频放进来，直接上传会更顺手。"
+        title="新建独立项目"
+        description="只有需要拆分独立流程时再创建。"
       >
         <form
           className="space-y-4"
