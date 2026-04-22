@@ -12,7 +12,7 @@ import { formatBytes } from '../lib/utils';
 const uploadStatusCopy = {
   pending: '待上传',
   uploading: '上传中',
-  success: '已上传',
+  success: '已完成',
   error: '失败',
 };
 
@@ -55,6 +55,7 @@ function UploadListItem({ item, onRemove, onRetry }) {
           ) : null}
 
           {item.error ? <p className="mt-3 text-xs text-red-600 dark:text-red-400">{item.error}</p> : null}
+          {item.notice ? <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">{item.notice}</p> : null}
 
           <div className="mt-4 flex flex-wrap gap-2">
             {isError ? (
@@ -113,6 +114,7 @@ export default function UploadPage() {
         timeout: 0,
         onUploadProgress: (event) => {
           const progress = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
+
           setItems((current) => current.map((entry) => (
             entry.id === item.id ? { ...entry, status: 'uploading', progress } : entry
           )));
@@ -121,19 +123,34 @@ export default function UploadPage() {
     },
     onSuccess: (response, item) => {
       const processingQueued = response?.data?.processingQueued;
+      const processingFallback = response?.data?.processingFallback;
       const assetStatus = response?.data?.asset?.status;
 
-      if (processingQueued === false || assetStatus === 'failed') {
-        setItems((current) => current.map((entry) => (
-          entry.id === item.id
-            ? { ...entry, status: 'error', progress: 100, error: '上传成功，但后台处理未启动，请稍后重试。' }
-            : entry
-        )));
-      } else {
-        setItems((current) => current.map((entry) => (
-          entry.id === item.id ? { ...entry, status: 'success', progress: 100, error: '' } : entry
-        )));
-      }
+      setItems((current) => current.map((entry) => {
+        if (entry.id !== item.id) {
+          return entry;
+        }
+
+        if (assetStatus === 'failed') {
+          return {
+            ...entry,
+            status: 'error',
+            progress: 100,
+            error: '上传成功，但后台处理未启动，请稍后重试。',
+            notice: '',
+          };
+        }
+
+        return {
+          ...entry,
+          status: 'success',
+          progress: 100,
+          error: '',
+          notice: processingQueued === false || processingFallback
+            ? '上传已完成，可以直接播放。后台转码和预览生成暂未启用。'
+            : '',
+        };
+      }));
 
       queryClient.invalidateQueries({ queryKey: ['project-assets', projectId] });
     },
@@ -144,7 +161,12 @@ export default function UploadPage() {
 
       setItems((current) => current.map((entry) => (
         entry.id === item.id
-          ? { ...entry, status: 'error', error: timeoutMessage || error.response?.data?.message || '上传失败，请稍后重试' }
+          ? {
+              ...entry,
+              status: 'error',
+              error: timeoutMessage || error.response?.data?.message || '上传失败，请稍后重试',
+              notice: '',
+            }
           : entry
       )));
     },
@@ -157,6 +179,7 @@ export default function UploadPage() {
       status: 'pending',
       progress: 0,
       error: '',
+      notice: '',
     }));
 
     setItems((current) => [...current, ...nextItems]);
@@ -192,17 +215,15 @@ export default function UploadPage() {
       <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
         <p className="text-sm font-medium text-surface-500 dark:text-surface-400">上传</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
-        <p className="mt-3 text-sm text-surface-500 dark:text-surface-400">
-          上传完成后，后台仍会继续处理。
-        </p>
+        <p className="mt-3 text-sm text-surface-500 dark:text-surface-400">上传完成后，后台仍可能继续生成预览。</p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-sm text-surface-500 dark:text-surface-400">文件</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">文件数</p>
             <p className="mt-2 text-2xl font-semibold">{items.length}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-sm text-surface-500 dark:text-surface-400">上传中</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">进行中</p>
             <p className="mt-2 text-2xl font-semibold">{uploadingCount}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
@@ -225,7 +246,7 @@ export default function UploadPage() {
             <UploadCloud size={24} />
           </div>
           <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里</h3>
-          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">或点击选择。</p>
+          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">或点击选择文件</p>
           <div className="mt-6">
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
               选择文件
@@ -238,7 +259,7 @@ export default function UploadPage() {
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
             <div className="flex items-center gap-2 text-sm font-medium">
               <FolderTree size={16} />
-              目录
+              目标目录
             </div>
           </div>
 
@@ -261,14 +282,14 @@ export default function UploadPage() {
         <EmptyState
           icon={UploadCloud}
           title="还没有文件"
-          description="添加后会出现在这里。"
+          description="把素材加入队列后，会显示在这里。"
         />
       ) : (
         <section className="space-y-4">
           <div className="flex flex-col gap-4 rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-lg font-semibold">队列</h3>
-              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">{items.length}</p>
+              <h3 className="text-lg font-semibold">上传队列</h3>
+              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">{items.length} 个文件</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button variant="ghost" onClick={() => setItems([])} disabled={uploadingCount > 0}>
@@ -286,7 +307,7 @@ export default function UploadPage() {
 
           {allUploaded ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/10 dark:text-emerald-200">
-              上传完成，后台仍在处理。
+              上传已完成。若转码服务可用，预览会继续在后台生成。
             </div>
           ) : null}
 
@@ -301,10 +322,10 @@ export default function UploadPage() {
                   if (!target) return;
 
                   setItems((current) => current.map((entry) => (
-                    entry.id === id ? { ...entry, status: 'pending', progress: 0, error: '' } : entry
+                    entry.id === id ? { ...entry, status: 'pending', progress: 0, error: '', notice: '' } : entry
                   )));
 
-                  uploadMutation.mutate({ ...target, status: 'pending', progress: 0, error: '' });
+                  uploadMutation.mutate({ ...target, status: 'pending', progress: 0, error: '', notice: '' });
                 }}
               />
             ))}

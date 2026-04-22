@@ -29,6 +29,24 @@ function loadDotEnvFile(filePath) {
 loadDotEnvFile(path.join(PROJECT_ROOT, '.env'));
 loadDotEnvFile(path.join(PROJECT_ROOT, '.env.local'));
 
+function encodeConnectionPart(value = '') {
+  return encodeURIComponent(value);
+}
+
+function applyRuntimeEnvFallbacks() {
+  if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_DATABASE && process.env.DB_USERNAME) {
+    const host = process.env.DB_HOST;
+    const port = process.env.DB_PORT || '5432';
+    const database = process.env.DB_DATABASE;
+    const username = encodeConnectionPart(process.env.DB_USERNAME);
+    const password = encodeConnectionPart(process.env.DB_PASSWORD || '');
+
+    process.env.DATABASE_URL = `postgresql://${username}:${password}@${host}:${port}/${database}`;
+  }
+}
+
+applyRuntimeEnvFallbacks();
+
 function resolveRootPath(targetPath, fallback) {
   const effective = targetPath || fallback;
   if (path.isAbsolute(effective)) return effective;

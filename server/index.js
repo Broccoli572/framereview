@@ -26,6 +26,45 @@ import { serializeForJson } from './lib/http.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function encodeConnectionPart(value = '') {
+  return encodeURIComponent(value);
+}
+
+function applyRuntimeEnvFallbacks() {
+  if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_DATABASE && process.env.DB_USERNAME) {
+    const protocol = process.env.DB_CONNECTION === 'postgres' ? 'postgresql' : 'postgresql';
+    const host = process.env.DB_HOST;
+    const port = process.env.DB_PORT || '5432';
+    const database = process.env.DB_DATABASE;
+    const username = encodeConnectionPart(process.env.DB_USERNAME);
+    const password = encodeConnectionPart(process.env.DB_PASSWORD || '');
+
+    process.env.DATABASE_URL = `${protocol}://${username}:${password}@${host}:${port}/${database}`;
+  }
+
+  if (!process.env.REDIS_URL && process.env.REDIS_HOST) {
+    const host = process.env.REDIS_HOST;
+    const port = process.env.REDIS_PORT || '6379';
+    const password = process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD !== 'null'
+      ? `:${encodeConnectionPart(process.env.REDIS_PASSWORD)}@`
+      : '';
+
+    process.env.REDIS_URL = `redis://${password}${host}:${port}`;
+  }
+
+  if (!process.env.JWT_SECRET) {
+    const fallbackSecret = process.env.APP_KEY?.replace(/^base64:/, '') || null;
+
+    if (fallbackSecret) {
+      process.env.JWT_SECRET = fallbackSecret;
+    } else if (process.env.NODE_ENV !== 'production') {
+      process.env.JWT_SECRET = 'local-dev-jwt-secret';
+    }
+  }
+}
+
+applyRuntimeEnvFallbacks();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 

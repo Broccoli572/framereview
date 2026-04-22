@@ -46,6 +46,10 @@ function getAssetType(mimeType) {
   return 'other';
 }
 
+function getFallbackAssetStatus() {
+  return 'ready';
+}
+
 async function queueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type }) {
   try {
     await enqueueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type });
@@ -53,14 +57,26 @@ async function queueAssetProcessing({ assetId, assetVersionId, filePath, mimeTyp
       where: { id: assetId },
       data: { status: 'processing' },
     });
-    return true;
+    return {
+      queued: true,
+      fallback: false,
+      status: 'processing',
+    };
   } catch (error) {
     console.error('[Asset] Failed to enqueue processing job:', error);
+
+    const fallbackStatus = getFallbackAssetStatus(type, mimeType);
+
     await prisma.asset.update({
       where: { id: assetId },
-      data: { status: 'failed' },
+      data: { status: fallbackStatus },
     });
-    return false;
+
+    return {
+      queued: false,
+      fallback: true,
+      status: fallbackStatus,
+    };
   }
 }
 
@@ -305,7 +321,7 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
       data: { currentVersionId: version.id },
     });
 
-    const processingQueued = await queueAssetProcessing({
+    const processingResult = await queueAssetProcessing({
       assetId: uploadId,
       assetVersionId: version.id,
       filePath: finalPath,
@@ -320,7 +336,12 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
       },
     });
 
-    res.json({ asset: processedAsset, version, processingQueued });
+    res.json({
+      asset: processedAsset,
+      version,
+      processingQueued: processingResult.queued,
+      processingFallback: processingResult.fallback,
+    });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: 'Validation failed', errors: err.errors });
@@ -391,7 +412,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       data: { currentVersionId: version.id },
     });
 
-    const processingQueued = await queueAssetProcessing({
+    const processingResult = await queueAssetProcessing({
       assetId: asset.id,
       assetVersionId: version.id,
       filePath: finalPath,
@@ -403,7 +424,12 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
       where: { id: asset.id },
     });
 
-    res.status(201).json({ asset: processedAsset, version, processingQueued });
+    res.status(201).json({
+      asset: processedAsset,
+      version,
+      processingQueued: processingResult.queued,
+      processingFallback: processingResult.fallback,
+    });
   } catch (err) {
     next(err);
   }
@@ -590,7 +616,7 @@ router.post('/:id/process', authenticate, async (req, res, next) => {
       return res.status(400).json({ message: 'No asset version available for processing' });
     }
 
-    const processingQueued = await queueAssetProcessing({
+    const processingResult = await queueAssetProcessing({
       assetId: asset.id,
       assetVersionId: version.id,
       filePath: version.filePath,
@@ -598,8 +624,12 @@ router.post('/:id/process', authenticate, async (req, res, next) => {
       type: asset.type,
     });
 
-    if (!processingQueued) {
-      return res.status(503).json({ message: 'Processing queue unavailable' });
+    if (!processingResult.queued) {
+      return res.json({
+        message: 'Background processing is unavailable. The original file remains playable.',
+        processingQueued: false,
+        processingFallback: processingResult.fallback,
+      });
     }
 
     res.json({ message: 'Processing queued', processingQueued: true });

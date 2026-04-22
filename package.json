@@ -15,7 +15,8 @@
     "db:push": "npx prisma@5.22.0 db push",
     "db:migrate": "npx prisma@5.22.0 migrate deploy",
     "db:seed": "node prisma/seed.js",
-    "db:studio": "npx prisma@5.22.0 studio"
+    "db:studio": "npx prisma@5.22.0 studio",
+    "reset:local": "node scripts/reset-local.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
