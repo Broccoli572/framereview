@@ -2,10 +2,23 @@ import { z } from 'zod';
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
+import {
+  created,
+  forbidden,
+  message,
+  notFound,
+  ok,
+  paginated,
+  unauthorized,
+  validationFailed,
+} from '../lib/http.js';
 
 const router = Router({ mergeParams: true });
 
-// ── Helpers ──────────────────────────────────────────────
+function parsePositiveInt(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 async function getProjectWithAccess(projectId, userId) {
   const project = await prisma.project.findFirst({
@@ -14,7 +27,6 @@ async function getProjectWithAccess(projectId, userId) {
   });
   if (!project) return null;
 
-  // 检查用户是否有工作区权限
   const member = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
   });
@@ -24,23 +36,20 @@ async function getProjectWithAccess(projectId, userId) {
 }
 
 async function requireProjectAccess(projectId, userId) {
-  const project = await getProjectWithAccess(projectId, userId);
-  if (!project) return null;
-  return project;
+  return getProjectWithAccess(projectId, userId);
 }
 
 async function requireProjectEditAccess(projectId, userId) {
   const project = await requireProjectAccess(projectId, userId);
   if (!project) return null;
-  // owner/admin/editor 可以编辑
+
   const member = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
   });
+
   if (!member || !['owner', 'admin', 'editor'].includes(member.role)) return null;
   return project;
 }
-
-// ── Validation ────────────────────────────────────────────
 
 const createSchema = z.object({
   name: z.string().min(1).max(255),
@@ -55,31 +64,28 @@ const updateSchema = z.object({
   status: z.enum(['active', 'archived']).optional(),
 });
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 嵌套路由：/api/workspaces/:workspaceId/projects
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// GET /api/workspaces/:workspaceId/projects
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { workspaceId } = req.params;
-    const { page = 1, per_page = 20, status, search } = req.query;
+    const page = parsePositiveInt(req.query.page, 1);
+    const perPage = parsePositiveInt(req.query.per_page, 20);
+    const { status, search } = req.query;
 
     const member = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: req.userId } },
     });
-    if (!member) return res.status(403).json({ message: 'Unauthorized' });
+    if (!member) return unauthorized(res, '无权限访问工作区项目');
 
     const where = {
       workspaceId,
       deletedAt: null,
-      ...(status && { status }),
-      ...(search && {
+      ...(status ? { status } : {}),
+      ...(search ? {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } },
         ],
-      }),
+      } : {}),
     };
 
     const [projects, total] = await Promise.all([
@@ -89,19 +95,18 @@ router.get('/', authenticate, async (req, res, next) => {
           _count: { select: { assets: true, folders: true, members: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip: (Number(page) - 1) * Number(per_page),
-        take: Number(per_page),
+        skip: (page - 1) * perPage,
+        take: perPage,
       }),
       prisma.project.count({ where }),
     ]);
 
-    res.json({ data: projects, total, page: Number(page), per_page: Number(per_page) });
+    return paginated(res, projects, { total, page, per_page: perPage });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/workspaces/:workspaceId/projects
 router.post('/', authenticate, async (req, res, next) => {
   try {
     const { workspaceId } = req.params;
@@ -111,7 +116,7 @@ router.post('/', authenticate, async (req, res, next) => {
       where: { workspaceId_userId: { workspaceId, userId: req.userId } },
     });
     if (!member || !['owner', 'admin', 'editor'].includes(member.role)) {
-      return res.status(403).json({ message: 'Forbidden' });
+      return forbidden(res, '无权限新建项目');
     }
 
     const project = await prisma.project.create({
@@ -124,55 +129,48 @@ router.post('/', authenticate, async (req, res, next) => {
       },
     });
 
-    // 添加创建者为项目成员
     await prisma.projectMember.create({
       data: { projectId: project.id, userId: req.userId, role: 'owner' },
     });
 
-    res.status(201).json({ data: project });
+    return created(res, { data: project });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 直连路由：/api/projects/:projectId
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// 创建直连路由器（不嵌套在 workspace 下）
 const directRouter = Router();
 
-// GET /api/projects/:id
 directRouter.get('/:id', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     const detail = await prisma.project.findUnique({
       where: { id: project.id },
       include: {
+        workspace: { select: { id: true, name: true } },
         folders: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } },
         members: {
           include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
         },
-        _count: { select: { assets: true } },
+        _count: { select: { assets: true, folders: true, members: true } },
       },
     });
 
-    res.json({ data: detail });
+    return ok(res, { data: detail });
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/projects/:id
 directRouter.put('/:id', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectEditAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     const data = updateSchema.parse(req.body);
 
@@ -186,73 +184,70 @@ directRouter.put('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json(updated);
+    return ok(res, { data: updated });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// DELETE /api/projects/:id
 directRouter.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectEditAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     await prisma.project.update({
       where: { id: project.id },
       data: { deletedAt: new Date() },
     });
 
-    res.json({ message: 'Project deleted' });
+    return message(res, '项目已删除');
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/projects/:id/archive
 directRouter.post('/:id/archive', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectEditAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     const updated = await prisma.project.update({
       where: { id: project.id },
       data: { status: 'archived' },
     });
 
-    res.json(updated);
+    return ok(res, { data: updated });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/projects/:id/unarchive
 directRouter.post('/:id/unarchive', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectEditAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     const updated = await prisma.project.update({
       where: { id: project.id },
       data: { status: 'active' },
     });
 
-    res.json(updated);
+    return ok(res, { data: updated });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/projects/:id/activity
 directRouter.get('/:id/activity', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
-    const { page = 1, per_page = 20 } = req.query;
+    const page = parsePositiveInt(req.query.page, 1);
+    const perPage = parsePositiveInt(req.query.per_page, 20);
 
     const activities = await prisma.activityLog.findMany({
       where: {
@@ -263,23 +258,22 @@ directRouter.get('/:id/activity', authenticate, async (req, res, next) => {
         user: { select: { id: true, name: true, avatar: true } },
       },
       orderBy: { createdAt: 'desc' },
-      skip: (Number(page) - 1) * Number(per_page),
-      take: Number(per_page),
+      skip: (page - 1) * perPage,
+      take: perPage,
     });
 
-    res.json({ data: activities });
+    return paginated(res, activities, { page, per_page: perPage });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/projects/:id/stats
 directRouter.get('/:id/stats', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
-    const [assetCount, folderCount, totalSize, byType] = await Promise.all([
+    const [assetCount, folderCount, totalSize, byType, memberCount] = await Promise.all([
       prisma.asset.count({
         where: { projectId: project.id, deletedAt: null },
       }),
@@ -295,27 +289,27 @@ directRouter.get('/:id/stats', authenticate, async (req, res, next) => {
         where: { projectId: project.id, deletedAt: null },
         _count: { type: true },
       }),
+      prisma.workspaceMember.count({ where: { workspaceId: project.workspaceId } }),
     ]);
 
-    res.json({
-      assetCount,
-      folderCount,
-      totalSizeBytes: totalSize._sum.sizeBytes || BigInt(0),
-      assetsByType: byType.map(b => ({ type: b.type, count: b._count.type })),
-      memberCount: project.workspace
-        ? await prisma.workspaceMember.count({ where: { workspaceId: project.workspaceId } })
-        : 0,
+    return ok(res, {
+      data: {
+        assetCount,
+        folderCount,
+        totalSizeBytes: totalSize._sum.sizeBytes || BigInt(0),
+        assetsByType: byType.map((item) => ({ type: item.type, count: item._count.type })),
+        memberCount,
+      },
     });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/projects/:id/duplicate
 directRouter.post('/:id/duplicate', authenticate, async (req, res, next) => {
   try {
     const project = await requireProjectEditAccess(req.params.id, req.userId);
-    if (!project) return res.status(404).json({ message: 'Project not found' });
+    if (!project) return notFound(res, '项目不存在');
 
     const { name } = req.body;
 
@@ -329,17 +323,15 @@ directRouter.post('/:id/duplicate', authenticate, async (req, res, next) => {
       },
     });
 
-    // 复制文件夹结构（不复制资产）
-    // TODO: 如需深复制文件夹和资产，可扩展
+    await prisma.projectMember.create({
+      data: { projectId: duplicated.id, userId: req.userId, role: 'owner' },
+    });
 
-    res.status(201).json(duplicated);
+    return created(res, { data: duplicated });
   } catch (err) {
     next(err);
   }
 });
 
-// 导出嵌套路由和直连路由
 export { router as nestedRouter, directRouter };
-
-// 默认导出嵌套路由（向后兼容）
 export default router;

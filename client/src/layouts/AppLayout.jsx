@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import client from '../api/client';
-import { normalizeAsset, getPageContext } from '../lib/view-models';
+import { getPageContext, normalizeAsset } from '../lib/view-models';
 import Avatar from '../components/ui/Avatar';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -124,16 +124,16 @@ export default function AppLayout() {
 
   const workflowNav = [
     workspaceQuery.data
-      ? { to: `/w/${workspaceQuery.data.id}`, icon: FolderKanban, label: workspaceQuery.data.name || '当前工作区' }
+      ? { to: `/w/${workspaceQuery.data.id}`, icon: FolderKanban, label: workspaceQuery.data.name || '工作区' }
       : null,
     projectQuery.data
-      ? { to: `/project/${projectQuery.data.id}`, icon: Film, label: projectQuery.data.name || '当前项目' }
+      ? { to: `/project/${projectQuery.data.id}`, icon: Film, label: projectQuery.data.name || '项目' }
       : null,
     projectQuery.data
-      ? { to: `/project/${projectQuery.data.id}/upload`, icon: Upload, label: '上传素材' }
+      ? { to: `/project/${projectQuery.data.id}/upload`, icon: Upload, label: '上传' }
       : null,
     workspaceQuery.data
-      ? { to: `/w/${workspaceQuery.data.id}/settings`, icon: Settings, label: '工作区设置' }
+      ? { to: `/w/${workspaceQuery.data.id}/settings`, icon: Settings, label: '设置' }
       : null,
   ].filter(Boolean);
 
@@ -169,7 +169,7 @@ export default function AppLayout() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">FrameReview</p>
-              <p className="truncate text-xs text-surface-500 dark:text-surface-400">视频协作与审阅工作台</p>
+              <p className="truncate text-xs text-surface-500 dark:text-surface-400">视频审阅</p>
             </div>
           </Link>
 
@@ -190,18 +190,13 @@ export default function AppLayout() {
               {primaryNav.map((item) => (
                 <AppNavLink key={item.to} to={item.to} icon={item.icon} label={item.label} end={item.end} />
               ))}
-              {canAccessAdmin ? <AppNavLink to="/admin" icon={Shield} label="管理后台" /> : null}
+              {canAccessAdmin ? <AppNavLink to="/admin" icon={Shield} label="后台" /> : null}
             </div>
           </section>
 
           {workflowNav.length ? (
-            <section className="space-y-3">
-              <div className="px-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前工作流</p>
-                <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
-                  工作区、项目、上传和设置入口保持在同一上下文。
-                </p>
-              </div>
+            <section className="space-y-2">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前工作流</p>
               <div className="space-y-1">
                 {workflowNav.map((item) => (
                   <AppNavLink key={item.to} to={item.to} icon={item.icon} label={item.label} />
@@ -267,7 +262,7 @@ export default function AppLayout() {
 
             <div className="hidden w-full max-w-sm lg:block">
               <SearchInput
-                placeholder="搜索项目、素材、文件夹"
+                placeholder="搜索"
                 onFocus={() => navigate('/search')}
                 onChange={() => {}}
               />

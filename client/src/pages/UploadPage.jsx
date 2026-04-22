@@ -13,7 +13,7 @@ const uploadStatusCopy = {
   pending: '待上传',
   uploading: '上传中',
   success: '已上传',
-  error: '上传失败',
+  error: '失败',
 };
 
 function UploadListItem({ item, onRemove, onRetry }) {
@@ -125,7 +125,7 @@ export default function UploadPage() {
     onError: (error, item) => {
       setItems((current) => current.map((entry) => (
         entry.id === item.id
-          ? { ...entry, status: 'error', error: error.response?.data?.message || '上传失败，请稍后重试。' }
+          ? { ...entry, status: 'error', error: error.response?.data?.message || '上传失败，请稍后重试' }
           : entry
       )));
     },
@@ -167,29 +167,28 @@ export default function UploadPage() {
 
   const totalSize = items.reduce((sum, item) => sum + item.file.size, 0);
   const uploadingCount = items.filter((item) => item.status === 'uploading').length;
-  const successCount = items.filter((item) => item.status === 'success').length;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
-        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">项目上传</p>
+        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">上传</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-          素材上传完成后，系统还会在后台继续处理封面、预览和可审阅版本。项目页和审阅页会自动刷新这些处理状态。
+        <p className="mt-3 text-sm text-surface-500 dark:text-surface-400">
+          上传完成后，后台仍会继续处理。
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">上传总量</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">文件</p>
             <p className="mt-2 text-2xl font-semibold">{items.length}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">上传中</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">上传中</p>
             <p className="mt-2 text-2xl font-semibold">{uploadingCount}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">已完成</p>
-            <p className="mt-2 text-2xl font-semibold">{successCount}</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">总大小</p>
+            <p className="mt-2 text-2xl font-semibold">{formatBytes(totalSize)}</p>
           </div>
         </div>
 
@@ -206,9 +205,9 @@ export default function UploadPage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900">
             <UploadCloud size={24} />
           </div>
-          <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里，或点击选择素材</h3>
+          <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里</h3>
           <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
-            支持视频、音频和图片。上传成功后会自动进入后台处理流程。
+            或点击选择。
           </p>
           <div className="mt-6">
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
@@ -222,11 +221,8 @@ export default function UploadPage() {
           <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
             <div className="flex items-center gap-2 text-sm font-medium">
               <FolderTree size={16} />
-              上传目录
+              目录
             </div>
-            <p className="mt-2 text-xs leading-5 text-surface-500 dark:text-surface-400">
-              如果不选择文件夹，素材会进入项目根目录。上传完成后你仍可在项目页继续整理。
-            </p>
           </div>
 
           <select
@@ -247,24 +243,22 @@ export default function UploadPage() {
       {items.length === 0 ? (
         <EmptyState
           icon={UploadCloud}
-          title="还没有待上传文件"
-          description="添加素材后，这里会展示上传进度以及后台处理提示。"
+          title="还没有文件"
+          description="添加后会出现在这里。"
         />
       ) : (
         <section className="space-y-4">
           <div className="flex flex-col gap-4 rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-lg font-semibold">上传队列</h3>
-              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-                共 {items.length} 个文件，合计 {formatBytes(totalSize)}。
-              </p>
+              <h3 className="text-lg font-semibold">队列</h3>
+              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">{items.length}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button variant="ghost" onClick={() => setItems([])} disabled={uploadingCount > 0}>
-                清空队列
+                清空
               </Button>
               {allUploaded ? (
-                <Button onClick={() => navigate(`/project/${projectId}`)}>返回项目查看处理进度</Button>
+                <Button onClick={() => navigate(`/project/${projectId}`)}>返回项目</Button>
               ) : (
                 <Button onClick={uploadPendingFiles} loading={uploadingCount > 0}>
                   开始上传
@@ -275,7 +269,7 @@ export default function UploadPage() {
 
           {allUploaded ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-900/10 dark:text-emerald-200">
-              文件已经上传完成，但系统仍在后台继续处理素材。你现在可以返回项目页查看处理状态，处理完成后再进入审阅页。
+              上传完成，后台仍在处理。
             </div>
           ) : null}
 

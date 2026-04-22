@@ -5,43 +5,43 @@ const ASSET_STATUS_META = {
     key: 'queued',
     label: '排队中',
     variant: 'default',
-    description: '素材已进入队列，等待开始处理。',
+    description: '等待处理',
   },
   uploading: {
     key: 'uploading',
     label: '上传中',
     variant: 'warning',
-    description: '文件正在上传，完成后会自动进入处理流程。',
+    description: '文件已接收',
   },
   processing: {
     key: 'processing',
     label: '处理中',
     variant: 'warning',
-    description: '系统正在生成预览、封面和可审阅版本。',
+    description: '正在生成预览',
   },
   ready: {
     key: 'ready',
     label: '可审阅',
     variant: 'success',
-    description: '素材已准备完成，可以进入审阅。',
+    description: '可进入审阅',
   },
   failed: {
     key: 'failed',
-    label: '处理失败',
+    label: '失败',
     variant: 'danger',
-    description: '处理未成功，可直接重新发起处理。',
+    description: '处理失败，可重试',
   },
   archived: {
     key: 'archived',
     label: '已归档',
     variant: 'info',
-    description: '素材已移入归档，不再参与当前流程。',
+    description: '已归档',
   },
   deleted: {
     key: 'deleted',
     label: '已删除',
     variant: 'default',
-    description: '素材已从当前视图移除。',
+    description: '已移除',
   },
 };
 
@@ -53,7 +53,7 @@ const REVIEW_APPROVAL_META = {
   },
   needs_review: {
     key: 'needs_review',
-    label: '待处理意见',
+    label: '待处理',
     variant: 'warning',
   },
   approved: {
@@ -68,7 +68,7 @@ const REVIEW_APPROVAL_META = {
   },
   no_version: {
     key: 'no_version',
-    label: '无可审阅版本',
+    label: '无版本',
     variant: 'default',
   },
 };
@@ -79,6 +79,12 @@ const EMPTY_CONTEXT = {
   breadcrumb: [],
   primaryAction: null,
 };
+
+function getProjectStatusMeta(status) {
+  return status === 'archived'
+    ? { label: '已归档', variant: 'warning' }
+    : { label: '进行中', variant: 'success' };
+}
 
 export function normalizeAssetStatus(status) {
   const raw = String(status || '').trim().toLowerCase();
@@ -142,9 +148,9 @@ export function normalizeAsset(asset) {
     statusVariant: statusMeta.variant,
     statusDescription: statusMeta.description,
     duration,
-    durationLabel: duration ? formatDuration(duration) : '未生成',
+    durationLabel: duration ? formatDuration(duration) : '--',
     sizeBytes,
-    sizeLabel: sizeBytes ? formatBytes(sizeBytes) : '未知大小',
+    sizeLabel: sizeBytes ? formatBytes(sizeBytes) : '--',
     updatedAt,
     updatedLabel: updatedAt ? formatRelativeTime(updatedAt) : '刚刚',
     createdAt: asset?.createdAt || asset?.created_at || null,
@@ -184,7 +190,7 @@ export function normalizeReviewThread(thread) {
     resolved: status === 'resolved',
     commentCount: comments.length,
     firstComment,
-    previewText: firstComment?.body || '未填写评论内容',
+    previewText: firstComment?.body || '暂无内容',
     createdAt: firstComment?.createdAt || thread?.createdAt || thread?.created_at || null,
     author: firstComment?.user || null,
     resolver: thread?.resolver || null,
@@ -196,10 +202,10 @@ export function normalizeSearchResults(payload = {}) {
   const assets = (payload.assets || []).map((item) => {
     const asset = normalizeAsset(item);
     const mediaLabel = {
-      video: '视频素材',
-      audio: '音频素材',
-      image: '图片素材',
-      document: '文档素材',
+      video: '视频',
+      audio: '音频',
+      image: '图片',
+      document: '文档',
       other: '素材',
     }[asset.mediaType] || '素材';
 
@@ -220,28 +226,32 @@ export function normalizeSearchResults(payload = {}) {
     };
   });
 
-  const projects = (payload.projects || []).map((item) => ({
-    id: item.id,
-    type: 'project',
-    title: item.name || '未命名项目',
-    subtitle: '项目',
-    meta: [item.status ? getAssetStatusMeta(item.status).label : null, item.createdAt ? formatRelativeTime(item.createdAt) : null]
-      .filter(Boolean)
-      .join(' · '),
-    href: `/project/${item.id}`,
-    contextLabel: '项目',
-    statusLabel: item.status ? getAssetStatusMeta(item.status).label : null,
-    statusVariant: item.status ? getAssetStatusMeta(item.status).variant : 'default',
-    thumbnailUrl: null,
-    raw: item,
-  }));
+  const projects = (payload.projects || []).map((item) => {
+    const projectStatus = getProjectStatusMeta(item.status);
+
+    return {
+      id: item.id,
+      type: 'project',
+      title: item.name || '未命名项目',
+      subtitle: '项目',
+      meta: [projectStatus.label, item.createdAt ? formatRelativeTime(item.createdAt) : null]
+        .filter(Boolean)
+        .join(' · '),
+      href: `/project/${item.id}`,
+      contextLabel: '项目',
+      statusLabel: projectStatus.label,
+      statusVariant: projectStatus.variant,
+      thumbnailUrl: null,
+      raw: item,
+    };
+  });
 
   const folders = (payload.folders || []).map((item) => ({
     id: item.id,
     type: 'folder',
     title: item.name || '未命名文件夹',
     subtitle: '文件夹',
-    meta: item.createdAt ? `创建于 ${formatRelativeTime(item.createdAt)}` : '文件夹结果',
+    meta: item.createdAt ? `创建于 ${formatRelativeTime(item.createdAt)}` : '文件夹',
     href: item.project_id ? `/project/${item.project_id}` : null,
     contextLabel: '文件夹',
     statusLabel: null,
@@ -264,7 +274,7 @@ export function getPageContext({ pathname, workspace, project, asset }) {
   if (pathname === '/') {
     return {
       title: '工作台',
-      subtitle: '统一查看工作区、项目规模和协作节奏。',
+      subtitle: '工作区与项目',
       breadcrumb: [{ label: '工作台', href: '/' }],
       primaryAction: { label: '进入工作区', href: '/' },
     };
@@ -272,8 +282,8 @@ export function getPageContext({ pathname, workspace, project, asset }) {
 
   if (pathname.startsWith('/search')) {
     return {
-      title: '全局搜索',
-      subtitle: '跨项目定位素材、项目与文件夹，并直接回到对应工作流。',
+      title: '搜索',
+      subtitle: '素材、项目、文件夹',
       breadcrumb: [{ label: '工作台', href: '/' }, { label: '搜索', href: '/search' }],
       primaryAction: null,
     };
@@ -281,8 +291,8 @@ export function getPageContext({ pathname, workspace, project, asset }) {
 
   if (pathname.startsWith('/w/') && pathname.endsWith('/settings')) {
     return {
-      title: '工作区设置',
-      subtitle: '管理成员、邀请和协作权限。',
+      title: '设置',
+      subtitle: '成员与权限',
       breadcrumb: [
         { label: '工作台', href: '/' },
         workspace?.id ? { label: workspace.name || '工作区', href: `/w/${workspace.id}` } : null,
@@ -295,16 +305,16 @@ export function getPageContext({ pathname, workspace, project, asset }) {
   if (pathname.startsWith('/w/')) {
     return {
       title: workspace?.name || '工作区',
-      subtitle: '围绕项目组织素材、上传和审阅流程。',
+      subtitle: '项目列表',
       breadcrumb: [{ label: '工作台', href: '/' }, { label: workspace?.name || '工作区', href: pathname }],
-      primaryAction: workspace?.id ? { label: '查看项目', href: `/w/${workspace.id}` } : null,
+      primaryAction: workspace?.id ? { label: '新建项目', href: `/w/${workspace.id}` } : null,
     };
   }
 
   if (pathname.startsWith('/project/') && pathname.endsWith('/upload')) {
     return {
-      title: '上传素材',
-      subtitle: '上传完成后仍会在后台继续处理，处理完成后自动进入可审阅状态。',
+      title: '上传',
+      subtitle: '文件进入后台处理',
       breadcrumb: [
         { label: '工作台', href: '/' },
         project?.workspaceId ? { label: project.workspaceName || '工作区', href: `/w/${project.workspaceId}` } : null,
@@ -318,7 +328,7 @@ export function getPageContext({ pathname, workspace, project, asset }) {
   if (pathname.startsWith('/project/')) {
     return {
       title: project?.name || '项目',
-      subtitle: '在同一上下文中完成素材整理、上传和状态跟进。',
+      subtitle: '素材与状态',
       breadcrumb: [
         { label: '工作台', href: '/' },
         project?.workspaceId ? { label: project.workspaceName || '工作区', href: `/w/${project.workspaceId}` } : null,
@@ -331,7 +341,7 @@ export function getPageContext({ pathname, workspace, project, asset }) {
   if (pathname.startsWith('/review/')) {
     return {
       title: asset?.name || '审阅',
-      subtitle: '围绕时间点、批注线程和版本状态完成审阅决策。',
+      subtitle: '预览与批注',
       breadcrumb: [
         { label: '工作台', href: '/' },
         asset?.workspaceId ? { label: asset.workspaceName || '工作区', href: `/w/${asset.workspaceId}` } : null,
@@ -344,9 +354,9 @@ export function getPageContext({ pathname, workspace, project, asset }) {
 
   if (pathname.startsWith('/admin')) {
     return {
-      title: '管理后台',
-      subtitle: '查看系统健康、核心规模和关键活动。',
-      breadcrumb: [{ label: '工作台', href: '/' }, { label: '管理后台', href: pathname }],
+      title: '后台',
+      subtitle: '系统与活动',
+      breadcrumb: [{ label: '工作台', href: '/' }, { label: '后台', href: pathname }],
       primaryAction: null,
     };
   }

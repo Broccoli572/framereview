@@ -60,7 +60,6 @@ function ReviewSkeleton() {
           <div className="space-y-3">
             <Skeleton className="h-4 w-24 rounded-lg" />
             <Skeleton className="h-8 w-72 rounded-lg" />
-            <Skeleton className="h-4 w-96 rounded-lg" />
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -266,7 +265,7 @@ export default function ReviewPage() {
     ? {
         id: 'draft',
         resolved: false,
-        previewText: '当前时间点的新批注尚未发送。',
+        previewText: '当前时间点的新批注',
         timecode: draftTimecode,
       }
     : null);
@@ -366,7 +365,7 @@ export default function ReviewPage() {
                 <ArrowLeft size={16} />
                 返回项目
               </button>
-              <p className="mt-3 text-sm font-medium text-surface-500 dark:text-surface-400">审阅工作台</p>
+              <p className="mt-3 text-sm font-medium text-surface-500 dark:text-surface-400">审阅</p>
               <h2 className="mt-2 truncate text-2xl font-semibold">{assetViewModel?.name || '素材审阅'}</h2>
               <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
                 {projectQuery.data?.workspaceName ? `${projectQuery.data.workspaceName} / ` : null}
@@ -375,7 +374,7 @@ export default function ReviewPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Badge variant={assetViewModel?.statusVariant || 'default'}>{assetViewModel?.statusLabel || '未知状态'}</Badge>
+              <Badge variant={assetViewModel?.statusVariant || 'default'}>{assetViewModel?.statusLabel || '未知'}</Badge>
               <Badge variant={reviewMeta.variant}>{reviewMeta.label}</Badge>
               {versions.length ? (
                 <select
@@ -395,13 +394,13 @@ export default function ReviewPage() {
 
           {assetViewModel?.status === 'processing' ? (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
-              素材仍在后台处理中。页面会自动刷新，处理完成后可直接进入正式审阅。
+              正在处理，页面会自动刷新。
             </div>
           ) : null}
 
           {assetViewModel?.status === 'failed' ? (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-200">
-              <span>当前素材处理失败，暂时无法稳定生成预览。</span>
+              <span>处理失败。</span>
               <Button size="sm" variant="secondary" leftIcon={RefreshCw} onClick={() => retryProcessingMutation.mutate()}>
                 重新处理
               </Button>
@@ -416,7 +415,7 @@ export default function ReviewPage() {
               onClick={() => approvalMutation.mutate('approved')}
               disabled={approvalMutation.isPending || assetViewModel?.status !== 'ready'}
             >
-              标记为通过
+              通过
             </Button>
             <Button
               size="sm"
@@ -425,23 +424,23 @@ export default function ReviewPage() {
               onClick={() => approvalMutation.mutate('needs_review')}
               disabled={approvalMutation.isPending || assetViewModel?.status === 'processing'}
             >
-              标记为待处理
+              待处理
             </Button>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">当前版本</p>
+              <p className="text-sm text-surface-500 dark:text-surface-400">版本</p>
               <p className="mt-2 text-xl font-semibold">
-                {selectedVersion?.versionNumber ? `v${selectedVersion.versionNumber}` : '未生成'}
+                {selectedVersion?.versionNumber ? `v${selectedVersion.versionNumber}` : '--'}
               </p>
             </div>
             <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">待处理线程</p>
+              <p className="text-sm text-surface-500 dark:text-surface-400">待处理</p>
               <p className="mt-2 text-xl font-semibold">{unresolvedCount}</p>
             </div>
             <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">已解决线程</p>
+              <p className="text-sm text-surface-500 dark:text-surface-400">已解决</p>
               <p className="mt-2 text-xl font-semibold">{resolvedCount}</p>
             </div>
           </div>
@@ -452,7 +451,7 @@ export default function ReviewPage() {
             {!mediaUrl ? (
               <div className="flex flex-col items-center gap-3 px-6 text-center text-surface-400">
                 <Film size={42} />
-                <p className="text-sm">还没有可用预览，素材处理完成后会自动显示。</p>
+                <p className="text-sm">暂无预览</p>
               </div>
             ) : mediaType === 'image' ? (
               <img src={mediaUrl} alt={assetViewModel?.name} className="max-h-[70vh] w-full object-contain" />
@@ -504,7 +503,7 @@ export default function ReviewPage() {
               <div>
                 <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-surface-800 bg-surface-900/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-surface-500">时间轴焦点</p>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-surface-500">时间点</p>
                     <p className="mt-1 text-sm font-medium">
                       {timelineFocusThread
                         ? formatTimecode(timelineFocusThread.timecode || 0)
@@ -512,9 +511,7 @@ export default function ReviewPage() {
                     </p>
                   </div>
                   <div className="max-w-[520px] text-sm text-surface-300">
-                    {timelineFocusThread
-                      ? timelineFocusThread.previewText
-                      : '点击时间轴任意位置快速定位，再从右侧创建或回复批注。'}
+                    {timelineFocusThread ? timelineFocusThread.previewText : '点击时间轴添加批注'}
                   </div>
                 </div>
 
@@ -616,9 +613,7 @@ export default function ReviewPage() {
               </div>
             ) : (
               <div className="rounded-2xl border border-surface-800 bg-surface-900 px-4 py-3 text-sm text-surface-300">
-                {mediaType === 'image'
-                  ? '图片素材不显示时间轴，你仍然可以在右侧记录评审意见。'
-                  : '当前素材暂无可用时间轴。'}
+                {mediaType === 'image' ? '图片素材没有时间轴。' : '当前素材没有可用时间轴。'}
               </div>
             )}
           </div>
@@ -629,11 +624,11 @@ export default function ReviewPage() {
         <div className="border-b border-surface-200 px-5 py-5 dark:border-surface-800">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-surface-500 dark:text-surface-400">批注线程</p>
-              <h3 className="mt-1 text-lg font-semibold">时间点与讨论</h3>
+              <p className="text-sm font-medium text-surface-500 dark:text-surface-400">批注</p>
+              <h3 className="mt-1 text-lg font-semibold">线程</h3>
             </div>
             <Badge variant={unresolvedCount ? 'warning' : 'success'}>
-              {unresolvedCount ? `${unresolvedCount} 个待处理` : '已清空'}
+              {unresolvedCount ? `${unresolvedCount} 待处理` : '已清空'}
             </Badge>
           </div>
 
@@ -641,7 +636,7 @@ export default function ReviewPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前位置</p>
             <p className="mt-2 text-sm font-medium">{formatTimecode(selectedTimecode || 0)}</p>
             <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
-              {activeThread ? '正在回复已存在线程。' : '你可以基于当前时间点创建新线程。'}
+              {activeThread ? '回复当前线程' : '创建新线程'}
             </p>
           </div>
 
@@ -654,7 +649,7 @@ export default function ReviewPage() {
                 setDraftTimecode(currentTime);
               }}
             >
-              在当前时间点发起批注
+              在当前时间点批注
             </Button>
             {activeThread ? (
               <Button
@@ -665,7 +660,7 @@ export default function ReviewPage() {
                   setDraftTimecode(currentTime);
                 }}
               >
-                切换为新线程
+                新线程
               </Button>
             ) : null}
           </div>
@@ -676,7 +671,7 @@ export default function ReviewPage() {
             <Textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder={activeThread ? '回复这个线程' : `在 ${formatDuration(selectedTimecode || 0)} 创建新线程`}
+              placeholder={activeThread ? '回复线程' : `在 ${formatDuration(selectedTimecode || 0)} 添加批注`}
               className="min-h-[96px]"
             />
             <div className="flex justify-end">
@@ -700,7 +695,7 @@ export default function ReviewPage() {
               icon={MessageSquare}
               compact
               title="还没有批注"
-              description="在时间轴上定位后输入意见，就会生成第一条评审线程。"
+              description="从时间轴开始。"
             />
           ) : (
             <div className="divide-y divide-surface-200 dark:divide-surface-800">
@@ -736,9 +731,9 @@ export default function ReviewPage() {
                     <p className="mt-2 text-sm font-medium leading-6">{thread.previewText}</p>
                     <div className="mt-3 flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
                       <Avatar src={thread.author?.avatar} name={thread.author?.name} size="xs" />
-                      <span>{thread.author?.name || '匿名成员'}</span>
+                      <span>{thread.author?.name || '成员'}</span>
                       <span>·</span>
-                      <span>{thread.commentCount} 条消息</span>
+                      <span>{thread.commentCount} 条</span>
                     </div>
                   </button>
 

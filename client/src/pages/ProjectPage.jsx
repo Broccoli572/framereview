@@ -82,18 +82,8 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
     audio: '音频',
     image: '图片',
     document: '文档',
-    other: '其他',
+    other: '素材',
   };
-
-  const progressWidth = asset.status === 'ready'
-    ? '100%'
-    : asset.status === 'processing'
-      ? '68%'
-      : asset.status === 'uploading'
-        ? '42%'
-        : asset.status === 'failed'
-          ? '100%'
-          : '28%';
 
   return (
     <button
@@ -118,26 +108,19 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
           <span className="rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
             {mediaTypeLabel[asset.mediaType] || '素材'}
           </span>
-          <div className="flex items-center gap-2">
-            {asset.isProcessing ? (
-              <span className="rounded-full bg-amber-400/95 px-2.5 py-1 text-[11px] font-semibold text-surface-950">
-                自动刷新
-              </span>
-            ) : null}
-            <button
-              type="button"
-              className="rounded-full bg-black/50 p-2 text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
-              onClick={(event) => {
-                event.stopPropagation();
-                if (window.confirm(`确定要删除素材“${asset.name}”吗？`)) {
-                  onDelete(asset);
-                }
-              }}
-              aria-label={`删除 ${asset.name}`}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
+          <button
+            type="button"
+            className="rounded-full bg-black/50 p-2 text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (window.confirm(`确定删除“${asset.name}”吗？`)) {
+                onDelete(asset);
+              }
+            }}
+            aria-label={`删除 ${asset.name}`}
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent px-3 pb-3 pt-10 text-white">
@@ -145,20 +128,6 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
             <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
             <span className="text-xs font-medium">{asset.durationLabel}</span>
           </div>
-        </div>
-
-        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/10">
-          <div
-            className={clsx(
-              'h-full',
-              asset.status === 'ready' && 'bg-emerald-400',
-              asset.status === 'processing' && 'animate-pulse bg-amber-400',
-              asset.status === 'failed' && 'bg-red-400',
-              asset.status === 'uploading' && 'animate-pulse bg-sky-400',
-              !['ready', 'processing', 'failed', 'uploading'].includes(asset.status) && 'bg-surface-300'
-            )}
-            style={{ width: progressWidth }}
-          />
         </div>
       </div>
 
@@ -176,19 +145,7 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
           </span>
         </div>
 
-        <div className="mt-3 space-y-2">
-          <p className="text-xs leading-5 text-surface-500 dark:text-surface-400">{asset.statusDescription}</p>
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-surface-400">
-            <div className="rounded-xl bg-surface-50 px-2.5 py-2 dark:bg-surface-950">
-              <p className="text-[10px] uppercase tracking-[0.12em]">状态</p>
-              <p className="mt-1 text-surface-600 dark:text-surface-300">{asset.statusLabel}</p>
-            </div>
-            <div className="rounded-xl bg-surface-50 px-2.5 py-2 dark:bg-surface-950">
-              <p className="text-[10px] uppercase tracking-[0.12em]">时长</p>
-              <p className="mt-1 text-surface-600 dark:text-surface-300">{asset.durationLabel}</p>
-            </div>
-          </div>
-        </div>
+        <p className="mt-3 text-xs text-surface-500 dark:text-surface-400">{asset.statusDescription}</p>
 
         <div className="mt-auto flex translate-y-0 items-center gap-2 pt-4 opacity-100 transition-all duration-200 md:translate-y-1 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
           <Button
@@ -200,7 +157,7 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
               onOpen(asset);
             }}
           >
-            打开审阅
+            打开
           </Button>
 
           {asset.canRetry ? (
@@ -248,7 +205,6 @@ function AssetGridSkeleton() {
           <div className="space-y-3 p-4">
             <Skeleton className="h-4 w-2/3 rounded-lg" />
             <Skeleton className="h-3 w-1/2 rounded-lg" />
-            <Skeleton className="h-14 w-full rounded-2xl" />
             <div className="flex gap-2">
               <Skeleton className="h-8 flex-1 rounded-xl" />
               <Skeleton className="h-8 w-20 rounded-xl" />
@@ -356,7 +312,7 @@ export default function ProjectPage() {
     { key: 'all', label: '全部', count: counts.total },
     { key: 'ready', label: '可审阅', count: counts.ready || 0 },
     { key: 'processing', label: '处理中', count: counts.processing || 0 },
-    { key: 'failed', label: '处理失败', count: counts.failed || 0 },
+    { key: 'failed', label: '失败', count: counts.failed || 0 },
     { key: 'uploading', label: '上传中', count: counts.uploading || 0 },
   ];
 
@@ -379,8 +335,8 @@ export default function ProjectPage() {
           <>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">目录结构</p>
-                <h3 className="mt-1 text-base font-semibold">文件夹与项目上下文</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">目录</p>
+                <h3 className="mt-1 text-base font-semibold">文件夹</h3>
               </div>
               <Button size="sm" variant="secondary" leftIcon={FolderPlus} onClick={() => setShowCreateFolder(true)}>
                 新建
@@ -389,9 +345,9 @@ export default function ProjectPage() {
 
             <div className="mt-4 rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
               <p className="text-sm font-medium">{projectQuery.data?.name || '项目'}</p>
-              <p className="mt-2 text-xs leading-5 text-surface-500 dark:text-surface-400">
-                {projectQuery.data?.description || '项目页统一承接素材列表、上传入口和处理状态。'}
-              </p>
+              {projectQuery.data?.description ? (
+                <p className="mt-2 text-xs text-surface-500 dark:text-surface-400">{projectQuery.data.description}</p>
+              ) : null}
             </div>
 
             <div className="mt-4 space-y-1">
@@ -424,7 +380,7 @@ export default function ProjectPage() {
                 <EmptyState
                   compact
                   title="还没有文件夹"
-                  description="你可以先直接上传素材，也可以先建立更清晰的目录。"
+                  description="可直接上传。"
                 />
               )}
             </div>
@@ -437,11 +393,8 @@ export default function ProjectPage() {
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="text-sm font-medium text-surface-500 dark:text-surface-400">项目资产台</p>
+                <p className="text-sm font-medium text-surface-500 dark:text-surface-400">项目</p>
                 <h2 className="mt-2 text-2xl font-semibold">{projectQuery.data?.name || '项目'}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-                  在同一页面完成素材筛选、状态跟进、失败重试和上传回跳，让上传与审阅保持一条连续工作流。
-                </p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button leftIcon={Upload} onClick={() => navigate(`/project/${projectId}/upload`)}>
@@ -452,7 +405,7 @@ export default function ProjectPage() {
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">全部素材</p>
+                <p className="text-sm text-surface-500 dark:text-surface-400">全部</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.total}</p>
               </div>
               <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
@@ -468,35 +421,8 @@ export default function ProjectPage() {
                 <p className="mt-2 text-2xl font-semibold">{counts.uploading || 0}</p>
               </div>
               <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">失败待处理</p>
+                <p className="text-sm text-surface-500 dark:text-surface-400">失败</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.failed || 0}</p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">工作流位置</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="rounded-full bg-surface-900 px-3 py-1.5 text-white dark:bg-surface-100 dark:text-surface-900">项目资产台</span>
-                  <span className="text-surface-400">→</span>
-                  <button
-                    type="button"
-                    className="rounded-full bg-surface-200 px-3 py-1.5 dark:bg-surface-800"
-                    onClick={() => navigate(`/project/${projectId}/upload`)}
-                  >
-                    上传素材
-                  </button>
-                  <span className="text-surface-400">→</span>
-                  <span className="rounded-full bg-surface-200 px-3 py-1.5 dark:bg-surface-800">进入审阅</span>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前筛选</p>
-                <p className="mt-3 text-sm text-surface-500 dark:text-surface-400">
-                  {selectedFolderId ? '已限定目录' : '全部目录'} · {mediaType === 'all' ? '全部类型' : mediaType} ·{' '}
-                  {statusFilter === 'all' ? '全部状态' : statusFilter}
-                </p>
               </div>
             </div>
           </div>
@@ -506,7 +432,7 @@ export default function ProjectPage() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.2fr)_repeat(3,minmax(0,180px))]">
               <Input
-                placeholder="按名称搜索素材"
+                placeholder="搜索素材"
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
                 leftIcon={Search}
@@ -529,7 +455,7 @@ export default function ProjectPage() {
                 <option value="all">全部状态</option>
                 <option value="processing">处理中</option>
                 <option value="ready">可审阅</option>
-                <option value="failed">处理失败</option>
+                <option value="failed">失败</option>
                 <option value="uploading">上传中</option>
               </select>
               <select
@@ -596,7 +522,7 @@ export default function ProjectPage() {
 
           {hasActiveFilters ? (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 dark:border-surface-800 dark:bg-surface-950 dark:text-surface-200">
-              <span>当前列表已应用筛选条件。</span>
+              <span>已应用筛选</span>
               <Button
                 size="sm"
                 variant="secondary"
@@ -608,7 +534,7 @@ export default function ProjectPage() {
                   setSearchValue('');
                 }}
               >
-                清空筛选
+                清空
               </Button>
             </div>
           ) : null}
@@ -616,7 +542,7 @@ export default function ProjectPage() {
           {counts.failed ? (
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
               <AlertTriangle size={16} />
-              <span>{counts.failed} 个素材处理失败，可直接在卡片或列表中发起重试。</span>
+              <span>{counts.failed} 个素材处理失败</span>
             </div>
           ) : null}
 
@@ -624,17 +550,11 @@ export default function ProjectPage() {
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 dark:border-surface-800 dark:bg-surface-950 dark:text-surface-200">
               <div className="flex items-center gap-2">
                 <Spinner size="sm" />
-                <span>检测到处理中素材，列表会自动轮询刷新。</span>
+                <span>处理中素材会自动刷新</span>
               </div>
               <Button size="sm" variant="secondary" onClick={() => assetsQuery.refetch()}>
                 立即刷新
               </Button>
-            </div>
-          ) : null}
-
-          {assetsQuery.isFetching && assets.length > 0 ? (
-            <div className="mt-4 rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-600 dark:border-surface-800 dark:bg-surface-950 dark:text-surface-300">
-              正在同步最新素材状态…
             </div>
           ) : null}
 
@@ -644,16 +564,16 @@ export default function ProjectPage() {
             ) : assetsQuery.isError ? (
               <EmptyState
                 icon={Film}
-                title="素材列表加载失败"
-                description="请稍后重试，或刷新页面后再次进入项目。"
+                title="加载失败"
+                description="请稍后重试。"
                 actionLabel="重新加载"
                 onAction={() => assetsQuery.refetch()}
               />
             ) : assets.length === 0 ? (
               <EmptyState
                 icon={Film}
-                title="当前筛选条件下没有素材"
-                description="你可以调整筛选条件，或者先上传新的素材进入项目。"
+                title="没有素材"
+                description="上传后会出现在这里。"
                 actionLabel="上传素材"
                 onAction={() => navigate(`/project/${projectId}/upload`)}
               />
@@ -678,7 +598,7 @@ export default function ProjectPage() {
                       <HeaderCell>状态</HeaderCell>
                       <HeaderCell>时长</HeaderCell>
                       <HeaderCell>体积</HeaderCell>
-                      <HeaderCell>最近更新</HeaderCell>
+                      <HeaderCell>更新</HeaderCell>
                       <HeaderCell className="w-[180px]">操作</HeaderCell>
                     </Row>
                   </Head>
@@ -724,7 +644,7 @@ export default function ProjectPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
-                                if (window.confirm(`确定要删除素材“${asset.name}”吗？`)) {
+                                if (window.confirm(`确定删除“${asset.name}”吗？`)) {
                                   deleteAssetMutation.mutate(asset.id);
                                 }
                               }}
@@ -750,7 +670,7 @@ export default function ProjectPage() {
           setNewFolderName('');
         }}
         title="新建文件夹"
-        description="在项目内补齐更清晰的素材目录结构。"
+        description="用于整理素材。"
       >
         <form
           className="space-y-4"
@@ -761,8 +681,8 @@ export default function ProjectPage() {
           }}
         >
           <Input
-            label="文件夹名称"
-            placeholder="例如：粗剪版 / 配音 / 参考素材"
+            label="名称"
+            placeholder="例如：粗剪 / 配音 / 参考"
             value={newFolderName}
             onChange={(event) => setNewFolderName(event.target.value)}
             autoFocus
@@ -772,7 +692,7 @@ export default function ProjectPage() {
               取消
             </Button>
             <Button type="submit" loading={createFolderMutation.isPending}>
-              创建文件夹
+              创建
             </Button>
           </div>
         </form>

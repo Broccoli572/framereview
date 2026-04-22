@@ -2,17 +2,24 @@ import { z } from 'zod';
 import { Router } from 'express';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
+import {
+  conflict,
+  created,
+  forbidden,
+  message,
+  notFound,
+  ok,
+  unauthorized,
+  validationFailed,
+} from '../lib/http.js';
 
 const router = Router();
-
-// ── Helpers ──────────────────────────────────────────────
 
 async function requireWorkspaceMember(workspaceId, userId) {
   const member = await prisma.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
   });
-  if (!member) return null;
-  return member;
+  return member || null;
 }
 
 async function requireWorkspaceOwnerOrAdmin(workspaceId, userId) {
@@ -21,7 +28,18 @@ async function requireWorkspaceOwnerOrAdmin(workspaceId, userId) {
   return member;
 }
 
-// ── Validation ────────────────────────────────────────────
+function normalizeWorkspaceMember(member) {
+  return {
+    id: member.user?.id || member.userId,
+    membershipId: member.id,
+    name: member.user?.name || '',
+    email: member.user?.email || '',
+    avatar: member.user?.avatar || null,
+    isActive: member.user?.isActive ?? true,
+    role: member.role,
+    createdAt: member.createdAt,
+  };
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(255),
@@ -43,74 +61,79 @@ const updateMemberRoleSchema = z.object({
   role: z.enum(['owner', 'admin', 'editor', 'member', 'viewer']),
 });
 
-// ── GET /api/workspaces ───────────────────────────────────
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const memberships = await prisma.workspaceMember.findMany({
       where: { userId: req.userId },
-      include: { workspace: { include: { _count: { select: { members: true, projects: true } } } } },
+      include: {
+        workspace: {
+          include: {
+            _count: { select: { members: true, projects: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    const workspaces = memberships.map(m => ({
-      id: m.workspace.id,
-      name: m.workspace.name,
-      slug: m.workspace.slug,
-      avatar: m.workspace.logo,
-      role: m.role,
-      memberCount: m.workspace._count.members,
-      projectCount: m.workspace._count.projects,
-      createdAt: m.workspace.createdAt,
+    const workspaces = memberships.map((membership) => ({
+      id: membership.workspace.id,
+      name: membership.workspace.name,
+      slug: membership.workspace.slug,
+      description: membership.workspace.description,
+      avatar: membership.workspace.logo,
+      role: membership.role,
+      memberCount: membership.workspace._count.members,
+      projectCount: membership.workspace._count.projects,
+      createdAt: membership.workspace.createdAt,
+      updatedAt: membership.workspace.updatedAt,
     }));
 
-    res.json({ data: workspaces });
+    return ok(res, { data: workspaces });
   } catch (err) {
     next(err);
   }
 });
 
-// ── POST /api/workspaces ──────────────────────────────────
 router.post('/', authenticate, async (req, res, next) => {
   try {
     const data = createSchema.parse(req.body);
 
-    // 自动生成 slug
-    const slug = data.name
+    const baseSlug = data.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
 
-    // 确保 slug 唯一
-    const baseSlug = slug;
-    let finalSlug = baseSlug;
+    let slug = baseSlug || 'workspace';
     let counter = 1;
-    while (await prisma.workspace.findUnique({ where: { slug: finalSlug } })) {
-      finalSlug = `${baseSlug}-${counter++}`;
+
+    while (await prisma.workspace.findUnique({ where: { slug } })) {
+      slug = `${baseSlug || 'workspace'}-${counter++}`;
     }
 
     const workspace = await prisma.workspace.create({
       data: {
         name: data.name,
-        slug: finalSlug,
+        description: data.description,
+        slug,
         members: {
           create: { userId: req.userId, role: 'owner' },
         },
       },
     });
 
-    res.status(201).json({ data: workspace });
+    return created(res, { data: workspace });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// ── GET /api/workspaces/:id ───────────────────────────────
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const member = await requireWorkspaceMember(req.params.id, req.userId);
-    if (!member) return res.status(403).json({ message: 'Unauthorized' });
+    if (!member) return unauthorized(res, '无权限访问工作区');
 
     const workspace = await prisma.workspace.findUnique({
       where: { id: req.params.id },
@@ -118,23 +141,22 @@ router.get('/:id', authenticate, async (req, res, next) => {
         members: {
           include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
         },
-        _count: { select: { projects: true } },
+        _count: { select: { projects: true, members: true } },
       },
     });
 
-    if (!workspace) return res.status(404).json({ message: 'Workspace not found' });
+    if (!workspace) return notFound(res, '工作区不存在');
 
-    res.json({ data: workspace });
+    return ok(res, { data: workspace });
   } catch (err) {
     next(err);
   }
 });
 
-// ── PUT /api/workspaces/:id ───────────────────────────────
 router.put('/:id', authenticate, async (req, res, next) => {
   try {
     const member = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!member) return res.status(403).json({ message: 'Forbidden' });
+    if (!member) return forbidden(res);
 
     const data = updateSchema.parse(req.body);
 
@@ -147,40 +169,35 @@ router.put('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json(workspace);
+    return ok(res, { data: workspace });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// ── DELETE /api/workspaces/:id ────────────────────────────
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const member = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!member) return res.status(403).json({ message: 'Forbidden' });
+    if (!member) return forbidden(res);
 
-    // Soft delete
     await prisma.workspace.update({
       where: { id: req.params.id },
       data: { deletedAt: new Date(), isActive: false },
     });
 
-    res.json({ message: 'Workspace deleted' });
+    return message(res, '工作区已删除');
   } catch (err) {
     next(err);
   }
 });
 
-// ── Members ──────────────────────────────────────────────
-
-// GET /api/workspaces/:id/members
 router.get('/:id/members', authenticate, async (req, res, next) => {
   try {
     const member = await requireWorkspaceMember(req.params.id, req.userId);
-    if (!member) return res.status(403).json({ message: 'Unauthorized' });
+    if (!member) return unauthorized(res, '无权限访问成员列表');
 
     const members = await prisma.workspaceMember.findMany({
       where: { workspaceId: req.params.id },
@@ -188,17 +205,17 @@ router.get('/:id/members', authenticate, async (req, res, next) => {
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json({ members });
+    const normalized = members.map(normalizeWorkspaceMember);
+    return ok(res, { data: normalized, members: normalized });
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/workspaces/:id/members/:userId — update member role
 router.put('/:id/members/:userId', authenticate, async (req, res, next) => {
   try {
     const adminMember = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!adminMember) return res.status(403).json({ message: 'Forbidden' });
+    if (!adminMember) return forbidden(res);
 
     const data = updateMemberRoleSchema.parse(req.body);
 
@@ -206,36 +223,35 @@ router.put('/:id/members/:userId', authenticate, async (req, res, next) => {
       where: {
         workspaceId_userId: { workspaceId: req.params.id, userId: req.params.userId },
       },
+      include: { user: { select: { id: true, name: true, email: true, avatar: true, isActive: true } } },
     });
 
-    if (!targetMember) return res.status(404).json({ message: 'Member not found' });
+    if (!targetMember) return notFound(res, '成员不存在');
 
     const updated = await prisma.workspaceMember.update({
       where: {
         workspaceId_userId: { workspaceId: req.params.id, userId: req.params.userId },
       },
       data: { role: data.role },
-      include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+      include: { user: { select: { id: true, name: true, email: true, avatar: true, isActive: true } } },
     });
 
-    res.json(updated);
+    return ok(res, { data: normalizeWorkspaceMember(updated) });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// DELETE /api/workspaces/:id/members/:userId — remove member
 router.delete('/:id/members/:userId', authenticate, async (req, res, next) => {
   try {
     const adminMember = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!adminMember) return res.status(403).json({ message: 'Forbidden' });
+    if (!adminMember) return forbidden(res);
 
-    // 不能删除自己（用 leave 接口）
     if (req.params.userId === req.userId) {
-      return res.status(400).json({ message: 'Cannot remove yourself. Use leave workspace instead.' });
+      return forbidden(res, '请使用退出工作区');
     }
 
     const targetMember = await prisma.workspaceMember.findUnique({
@@ -244,12 +260,8 @@ router.delete('/:id/members/:userId', authenticate, async (req, res, next) => {
       },
     });
 
-    if (!targetMember) return res.status(404).json({ message: 'Member not found' });
-
-    // 不能删除 owner
-    if (targetMember.role === 'owner') {
-      return res.status(400).json({ message: 'Cannot remove workspace owner' });
-    }
+    if (!targetMember) return notFound(res, '成员不存在');
+    if (targetMember.role === 'owner') return forbidden(res, '不能移除所有者');
 
     await prisma.workspaceMember.delete({
       where: {
@@ -257,32 +269,28 @@ router.delete('/:id/members/:userId', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json({ message: 'Member removed' });
+    return message(res, '成员已移除');
   } catch (err) {
     next(err);
   }
 });
 
-// ── Invites ──────────────────────────────────────────────
-
-// POST /api/workspaces/:id/invites
 router.post('/:id/invites', authenticate, async (req, res, next) => {
   try {
     const adminMember = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!adminMember) return res.status(403).json({ message: 'Forbidden' });
+    if (!adminMember) return forbidden(res);
 
     const data = inviteSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { email: data.email } });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return notFound(res, '用户不存在');
 
-    // 检查是否已经是成员
     const existing = await prisma.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId: req.params.id, userId: user.id } },
     });
 
     if (existing) {
-      return res.status(409).json({ message: 'User is already a member' });
+      return conflict(res, '用户已在工作区中');
     }
 
     await prisma.workspaceMember.create({
@@ -293,55 +301,46 @@ router.post('/:id/invites', authenticate, async (req, res, next) => {
       },
     });
 
-    // TODO: 发送邀请邮件/通知
-
-    res.status(201).json({ message: 'Invite sent' });
+    return message(res, '邀请已发送', {}, 201);
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: 'Validation failed', errors: err.errors });
+      return validationFailed(res, err.errors);
     }
     next(err);
   }
 });
 
-// GET /api/workspaces/:id/invites
 router.get('/:id/invites', authenticate, async (req, res, next) => {
   try {
     const member = await requireWorkspaceMember(req.params.id, req.userId);
-    if (!member) return res.status(403).json({ message: 'Unauthorized' });
+    if (!member) return unauthorized(res, '无权限访问邀请列表');
 
-    // 返回所有成员列表（当前实现：邀请即添加为成员）
-    // TODO: 如需独立 invite 表，可扩展
-    const members = await prisma.workspaceMember.findMany({
+    const invites = await prisma.workspaceMember.findMany({
       where: { workspaceId: req.params.id },
-      include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+      include: { user: { select: { id: true, name: true, email: true, avatar: true, isActive: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ invites: members });
+    const normalized = invites.map(normalizeWorkspaceMember);
+    return ok(res, { data: normalized, invites: normalized });
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/workspaces/:id/invites/:inviteId
 router.delete('/:id/invites/:inviteId', authenticate, async (req, res, next) => {
   try {
     const adminMember = await requireWorkspaceOwnerOrAdmin(req.params.id, req.userId);
-    if (!adminMember) return res.status(403).json({ message: 'Forbidden' });
+    if (!adminMember) return forbidden(res);
 
-    // 撤回邀请 = 移除成员（当前实现）
     const target = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: { workspaceId: req.params.id, userId: req.params.inviteId },
       },
     });
 
-    if (!target) return res.status(404).json({ message: 'Invite not found' });
-
-    if (target.role === 'owner') {
-      return res.status(400).json({ message: 'Cannot cancel owner invite' });
-    }
+    if (!target) return notFound(res, '邀请不存在');
+    if (target.role === 'owner') return forbidden(res, '不能撤销所有者');
 
     await prisma.workspaceMember.delete({
       where: {
@@ -349,7 +348,7 @@ router.delete('/:id/invites/:inviteId', authenticate, async (req, res, next) => 
       },
     });
 
-    res.json({ message: 'Invite cancelled' });
+    return message(res, '邀请已撤销');
   } catch (err) {
     next(err);
   }

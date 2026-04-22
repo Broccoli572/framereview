@@ -12,12 +12,14 @@ import Skeleton from '../components/ui/Skeleton';
 import Textarea from '../components/ui/Textarea';
 import { formatRelativeTime } from '../lib/utils';
 
-function SummaryCard({ label, value, detail }) {
+function SummaryCard({ label, value, icon: Icon }) {
   return (
     <div className="rounded-2xl border border-surface-200 bg-white p-5 dark:border-surface-800 dark:bg-surface-900">
-      <p className="text-sm text-surface-500 dark:text-surface-400">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
-      <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">{detail}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-surface-500 dark:text-surface-400">{label}</p>
+        <Icon size={16} className="text-surface-400" />
+      </div>
+      <p className="mt-3 text-3xl font-semibold">{value}</p>
     </div>
   );
 }
@@ -25,15 +27,14 @@ function SummaryCard({ label, value, detail }) {
 function DashboardSkeleton() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <section className="grid gap-6 rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:grid-cols-[1.4fr_0.9fr] lg:p-8">
+      <section className="grid gap-6 rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
         <div className="space-y-4">
           <Skeleton className="h-4 w-24 rounded-lg" />
-          <Skeleton className="h-10 w-3/4 rounded-lg" />
-          <Skeleton className="h-4 w-full rounded-lg" />
-          <Skeleton className="h-4 w-5/6 rounded-lg" />
+          <Skeleton className="h-10 w-64 rounded-lg" />
+          <Skeleton className="h-4 w-80 rounded-lg" />
           <div className="flex gap-3">
             <Skeleton className="h-10 w-32 rounded-xl" />
-            <Skeleton className="h-10 w-36 rounded-xl" />
+            <Skeleton className="h-10 w-32 rounded-xl" />
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
@@ -45,7 +46,7 @@ function DashboardSkeleton() {
 
       <section className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-72 w-full rounded-[24px]" />
+          <Skeleton key={index} className="h-64 w-full rounded-[24px]" />
         ))}
       </section>
     </div>
@@ -80,7 +81,7 @@ export default function DashboardPage() {
       }
     },
     onError: (mutationError) => {
-      setError(mutationError.response?.data?.message || '创建工作区失败，请稍后再试。');
+      setError(mutationError.response?.data?.message || '创建工作区失败');
     },
   });
 
@@ -100,14 +101,14 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      <section className="grid gap-6 rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:grid-cols-[1.4fr_0.9fr] lg:p-8">
+      <section className="grid gap-6 rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
         <div>
-          <p className="text-sm font-medium text-surface-500 dark:text-surface-400">工作台总览</p>
+          <p className="text-sm font-medium text-surface-500 dark:text-surface-400">工作台</p>
           <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-surface-950 dark:text-surface-50">
-            以工作区为起点，把项目、素材上传和审阅流程收在同一条主链路里。
+            从工作区开始。
           </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-            这里是全站入口。先进入工作区，再管理项目，最后串联上传、处理和审阅动作，避免页面之间断层。
+          <p className="mt-4 max-w-2xl text-sm text-surface-500 dark:text-surface-400">
+            项目、上传、审阅都从这里进入。
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button leftIcon={Plus} onClick={() => setShowCreate(true)}>
@@ -122,9 +123,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-          <SummaryCard label="工作区" value={workspaces.length} detail="按团队或业务线组织项目。" />
-          <SummaryCard label="项目" value={totalProjects} detail="统一沉淀素材、状态与审阅记录。" />
-          <SummaryCard label="成员" value={totalMembers} detail="围绕工作区做协作和权限管理。" />
+          <SummaryCard label="工作区" value={workspaces.length} icon={FolderKanban} />
+          <SummaryCard label="项目" value={totalProjects} icon={Layers3} />
+          <SummaryCard label="成员" value={totalMembers} icon={Users} />
         </div>
       </section>
 
@@ -132,17 +133,14 @@ export default function DashboardPage() {
         <EmptyState
           icon={FolderKanban}
           title="还没有工作区"
-          description="先创建一个工作区，后续项目、上传和审阅都会围绕它展开。"
+          description="先创建一个。"
           actionLabel="新建工作区"
           onAction={() => setShowCreate(true)}
         />
       ) : (
         <section className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold">工作区列表</h3>
-            <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-              选择一个工作区，继续进入项目与素材工作流。
-            </p>
+            <h3 className="text-lg font-semibold">工作区</h3>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
@@ -154,9 +152,11 @@ export default function DashboardPage() {
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">工作区</p>
                         <h4 className="mt-2 text-xl font-semibold">{workspace.name}</h4>
-                        <p className="mt-2 max-w-xl text-sm text-surface-500 dark:text-surface-400">
-                          {workspace.description || '用于承接同一团队或业务线下的项目与素材协作。'}
-                        </p>
+                        {workspace.description ? (
+                          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+                            {workspace.description}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="rounded-2xl bg-surface-900 p-3 text-white dark:bg-surface-100 dark:text-surface-900">
                         <FolderKanban size={18} />
@@ -182,16 +182,15 @@ export default function DashboardPage() {
                     <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-900">
                       <div className="flex items-center gap-2 text-sm text-surface-500 dark:text-surface-400">
                         <Film size={14} />
-                        最近更新
+                        更新
                       </div>
                       <p className="mt-2 text-sm font-medium">{formatRelativeTime(workspace.updatedAt || workspace.createdAt)}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 px-6 pb-6">
-                    <p className="text-sm text-surface-500 dark:text-surface-400">进入后可继续新建项目、管理成员与配置协作。</p>
+                  <div className="flex items-center justify-end px-6 pb-6">
                     <div className="inline-flex items-center gap-2 text-sm font-medium text-surface-900 dark:text-surface-100">
-                      进入工作区
+                      进入
                       <ArrowRight size={16} />
                     </div>
                   </div>
@@ -210,14 +209,14 @@ export default function DashboardPage() {
           setError('');
         }}
         title="新建工作区"
-        description="先定义工作区，再在其中继续组织项目和成员。"
+        description="创建后可继续添加项目。"
       >
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!form.name.trim()) {
-              setError('请输入工作区名称。');
+              setError('请输入工作区名称');
               return;
             }
             setError('');
@@ -225,16 +224,16 @@ export default function DashboardPage() {
           }}
         >
           <Input
-            label="工作区名称"
-            placeholder="例如：品牌营销中心"
+            label="名称"
+            placeholder="例如：品牌营销"
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             error={error}
             autoFocus
           />
           <Textarea
-            label="工作区说明"
-            placeholder="描述这个工作区承载的业务或协作范围。"
+            label="说明"
+            placeholder="选填"
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           />
@@ -243,7 +242,7 @@ export default function DashboardPage() {
               取消
             </Button>
             <Button type="submit" loading={createWorkspaceMutation.isPending}>
-              创建工作区
+              创建
             </Button>
           </div>
         </form>

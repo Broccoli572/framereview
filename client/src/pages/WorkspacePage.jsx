@@ -32,7 +32,6 @@ function WorkspaceSkeleton() {
         <div className="space-y-4">
           <Skeleton className="h-4 w-20 rounded-lg" />
           <Skeleton className="h-10 w-64 rounded-lg" />
-          <Skeleton className="h-4 w-3/4 rounded-lg" />
           <div className="flex gap-3">
             <Skeleton className="h-10 w-32 rounded-xl" />
             <Skeleton className="h-10 w-28 rounded-xl" />
@@ -47,7 +46,7 @@ function WorkspaceSkeleton() {
 
       <section className="grid gap-4 xl:grid-cols-2">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-72 w-full rounded-[24px]" />
+          <Skeleton key={index} className="h-64 w-full rounded-[24px]" />
         ))}
       </section>
     </div>
@@ -90,12 +89,12 @@ export default function WorkspacePage() {
       setFormError('');
     },
     onError: (error) => {
-      setFormError(error.response?.data?.message || '创建项目失败，请稍后再试。');
+      setFormError(error.response?.data?.message || '创建项目失败');
     },
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: (id) => client.delete(`/workspaces/${workspaceId}/projects/${id}`),
+    mutationFn: (id) => client.delete(`/projects/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workspace-projects', workspaceId] });
     },
@@ -119,14 +118,16 @@ export default function WorkspacePage() {
             <h2 className="mt-3 text-3xl font-semibold tracking-tight">
               {workspaceQuery.data?.name || '工作区'}
             </h2>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-              {workspaceQuery.data?.description || '项目、素材、上传和审阅都围绕这个工作区组织。'}
-            </p>
+            {workspaceQuery.data?.description ? (
+              <p className="mt-3 max-w-3xl text-sm text-surface-500 dark:text-surface-400">
+                {workspaceQuery.data.description}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" leftIcon={Settings2} onClick={() => navigate(`/w/${workspaceId}/settings`)}>
-              工作区设置
+              设置
             </Button>
             <Button leftIcon={Plus} onClick={() => setShowCreateProject(true)}>
               新建项目
@@ -136,15 +137,15 @@ export default function WorkspacePage() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
-            <p className="text-sm text-surface-500 dark:text-surface-400">项目数</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">项目</p>
             <p className="mt-2 text-3xl font-semibold">{projects.length}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
-            <p className="text-sm text-surface-500 dark:text-surface-400">成员数</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">成员</p>
             <p className="mt-2 text-3xl font-semibold">{workspaceQuery.data?._count?.members ?? workspaceQuery.data?.memberCount ?? 0}</p>
           </div>
           <div className="rounded-2xl bg-surface-50 p-5 dark:bg-surface-950">
-            <p className="text-sm text-surface-500 dark:text-surface-400">创建时间</p>
+            <p className="text-sm text-surface-500 dark:text-surface-400">创建</p>
             <p className="mt-2 text-sm font-medium">{formatRelativeTime(workspaceQuery.data?.createdAt)}</p>
           </div>
         </div>
@@ -153,18 +154,15 @@ export default function WorkspacePage() {
       {projects.length === 0 ? (
         <EmptyState
           icon={FolderKanban}
-          title="这个工作区还没有项目"
-          description="先建一个项目，把上传、素材处理和审阅流程真正接起来。"
+          title="还没有项目"
+          description="先建一个。"
           actionLabel="新建项目"
           onAction={() => setShowCreateProject(true)}
         />
       ) : (
         <section className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold">项目列表</h3>
-            <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-              所有素材、上传和审阅页面都从这里继续进入。
-            </p>
+            <h3 className="text-lg font-semibold">项目</h3>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
@@ -176,9 +174,11 @@ export default function WorkspacePage() {
                     <Link to={`/project/${project.id}`} className="mt-2 block text-xl font-semibold hover:text-brand-600 dark:hover:text-brand-400">
                       {project.name}
                     </Link>
-                    <p className="mt-2 max-w-xl text-sm text-surface-500 dark:text-surface-400">
-                      {project.description || '用于承接同一批素材和审阅任务。'}
-                    </p>
+                    {project.description ? (
+                      <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+                        {project.description}
+                      </p>
+                    ) : null}
                   </div>
                   <Dropdown
                     align="right"
@@ -193,7 +193,7 @@ export default function WorkspacePage() {
                         icon: Trash2,
                         danger: true,
                         onClick: () => {
-                          if (window.confirm(`确定要删除项目“${project.name}”吗？`)) {
+                          if (window.confirm(`确定删除“${project.name}”吗？`)) {
                             deleteProjectMutation.mutate(project.id);
                           }
                         },
@@ -212,26 +212,21 @@ export default function WorkspacePage() {
                     <p className="mt-2 text-2xl font-semibold">{project.folderCount}</p>
                   </div>
                   <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-900">
-                    <p className="text-sm text-surface-500 dark:text-surface-400">最近更新</p>
+                    <p className="text-sm text-surface-500 dark:text-surface-400">更新</p>
                     <p className="mt-2 text-sm font-medium">{project.updatedLabel}</p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-6">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={project.status === 'archived' ? 'warning' : 'success'}>
-                      {project.status === 'archived' ? '已归档' : '进行中'}
-                    </Badge>
-                    <span className="text-sm text-surface-500 dark:text-surface-400">
-                      进入项目后可继续上传素材或开始审阅。
-                    </span>
-                  </div>
+                  <Badge variant={project.status === 'archived' ? 'warning' : 'success'}>
+                    {project.status === 'archived' ? '已归档' : '进行中'}
+                  </Badge>
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => navigate(`/project/${project.id}`)}>
-                      查看项目
+                      打开
                     </Button>
                     <Button size="sm" onClick={() => navigate(`/project/${project.id}/upload`)}>
-                      上传素材
+                      上传
                     </Button>
                   </div>
                 </div>
@@ -249,14 +244,14 @@ export default function WorkspacePage() {
           setFormError('');
         }}
         title="新建项目"
-        description="项目是上传、素材整理和审阅协作的直接容器。"
+        description="创建后可继续上传与审阅。"
       >
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!form.name.trim()) {
-              setFormError('请输入项目名称。');
+              setFormError('请输入项目名称');
               return;
             }
             setFormError('');
@@ -264,16 +259,16 @@ export default function WorkspacePage() {
           }}
         >
           <Input
-            label="项目名称"
-            placeholder="例如：品牌宣传片 V2"
+            label="名称"
+            placeholder="例如：品牌短片 V2"
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             error={formError}
             autoFocus
           />
           <Textarea
-            label="项目说明"
-            placeholder="描述这个项目的用途、交付目标或协作范围。"
+            label="说明"
+            placeholder="选填"
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
           />
@@ -282,7 +277,7 @@ export default function WorkspacePage() {
               取消
             </Button>
             <Button type="submit" loading={createProjectMutation.isPending}>
-              创建项目
+              创建
             </Button>
           </div>
         </form>

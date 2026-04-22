@@ -33,7 +33,7 @@ function SearchResultCard({ item, onOpen }) {
           {item.statusLabel ? <Badge variant={item.statusVariant}>{item.statusLabel}</Badge> : null}
         </div>
         <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">{item.subtitle}</p>
-        <p className="mt-2 text-xs text-surface-400">{item.meta}</p>
+        {item.meta ? <p className="mt-2 text-xs text-surface-400">{item.meta}</p> : null}
       </div>
 
       <div className="hidden items-center gap-2 text-sm text-surface-500 dark:text-surface-400 md:flex">
@@ -105,15 +105,15 @@ export default function SearchPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
-        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">全局资源入口</p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight">跨项目搜索素材、项目和文件夹</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-          搜索结果会直接说明它属于什么上下文，以及点击后会进入哪个工作流页面，避免只给一串孤立列表。
+        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">搜索</p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight">快速定位。</h2>
+        <p className="mt-3 text-sm text-surface-500 dark:text-surface-400">
+          素材、项目、文件夹。
         </p>
 
         <div className="relative mt-6">
           <Input
-            placeholder="输入素材名、项目名或文件夹名"
+            placeholder="输入名称"
             value={query}
             onChange={(event) => {
               const value = event.target.value;
@@ -155,30 +155,13 @@ export default function SearchPage() {
             </button>
           ))}
         </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">搜索策略</p>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-300">结果优先保留上下文，避免“只找到名字，找不到入口”。</p>
-          </div>
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">结果类型</p>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-300">统一返回素材、项目、文件夹三类结果。</p>
-          </div>
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前状态</p>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-300">
-              {isSearching ? '正在搜索最新结果…' : deferredQuery ? '结果已按当前筛选收口。' : '输入关键词后立即开始搜索。'}
-            </p>
-          </div>
-        </div>
       </section>
 
       {!deferredQuery && !searchQuery.isLoading ? (
         <EmptyState
           icon={Sparkles}
-          title="输入关键词开始搜索"
-          description="这里会统一返回素材、项目和文件夹结果，并指向它们真实的上下文入口。"
+          title="开始搜索"
+          description="输入名称后查看结果。"
         />
       ) : null}
 
@@ -187,25 +170,18 @@ export default function SearchPage() {
       {deferredQuery && !isSearching && currentResults.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
-          title="没有找到匹配结果"
-          description={`没有检索到与“${deferredQuery}”相关的内容。你可以换一个名称、状态词或项目关键词再试一次。`}
-          actionLabel="清空搜索"
+          title="没有结果"
+          description={`未找到“${deferredQuery}”相关内容。`}
+          actionLabel="清空"
           onAction={() => setQuery('')}
         />
       ) : null}
 
       {deferredQuery && !isSearching && currentResults.length > 0 ? (
         <section className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">搜索结果</h3>
-              <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-                已找到 {currentResults.length} 个结果，每个结果都会标明所属资源类型和跳转目标。
-              </p>
-            </div>
-            <p className="text-sm text-surface-400">
-              当前筛选: {tabs.find((tab) => tab.key === activeTab)?.label || '全部'}
-            </p>
+          <div className="flex items-end justify-between gap-3">
+            <h3 className="text-lg font-semibold">结果</h3>
+            <p className="text-sm text-surface-400">{currentResults.length}</p>
           </div>
 
           <div className="space-y-3">

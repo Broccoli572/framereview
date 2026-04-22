@@ -1,13 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index.js';
+import { forbidden, unauthorized } from '../lib/http.js';
 
-/**
- * 验证 JWT 并注入 req.userId
- */
 export async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Unauthorized' });
+    return unauthorized(res);
   }
 
   const token = authHeader.slice(7);
@@ -16,14 +14,11 @@ export async function authenticate(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = payload.userId;
     next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+  } catch {
+    return unauthorized(res, '登录已过期');
   }
 }
 
-/**
- * 可选认证：找不到 token 也继续（用于公开接口）
- */
 export async function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -34,15 +29,12 @@ export async function optionalAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.userId = payload.userId;
-  } catch (err) {
-    // ignore
+  } catch {
+    // ignore invalid tokens for public routes
   }
   next();
 }
 
-/**
- * 要求特定角色
- */
 export function requireRole(roleName) {
   return async (req, res, next) => {
     try {
@@ -51,8 +43,8 @@ export function requireRole(roleName) {
         include: { roles: true },
       });
 
-      if (!user || !user.roles.some(r => r.name === roleName)) {
-        return res.status(403).json({ message: 'Forbidden' });
+      if (!user || !user.roles.some((role) => role.name === roleName)) {
+        return forbidden(res);
       }
 
       next();

@@ -70,7 +70,7 @@ export default function WorkspaceSettingsPage() {
       setInviteError('');
     },
     onError: (error) => {
-      setInviteError(error.response?.data?.message || '邀请发送失败，请稍后再试。');
+      setInviteError(error.response?.data?.message || '邀请失败');
     },
   });
 
@@ -110,11 +110,8 @@ export default function WorkspaceSettingsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
-        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">工作区设置</p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight">成员、邀请与协作权限</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-          这里不扩展新的后端协议，只把现有成员和邀请接口收束成稳定、可读、可操作的设置页。
-        </p>
+        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">设置</p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight">成员与权限</h2>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {[
@@ -144,7 +141,7 @@ export default function WorkspaceSettingsPage() {
               <Input
                 label="邀请成员"
                 type="email"
-                placeholder="输入成员邮箱"
+                placeholder="输入邮箱"
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}
                 error={inviteError}
@@ -166,7 +163,7 @@ export default function WorkspaceSettingsPage() {
                   fullWidth
                   onClick={() => {
                     if (!inviteEmail.trim()) {
-                      setInviteError('请输入要邀请的邮箱。');
+                      setInviteError('请输入邮箱');
                       return;
                     }
                     setInviteError('');
@@ -184,7 +181,7 @@ export default function WorkspaceSettingsPage() {
             {members.length === 0 ? (
               <EmptyState
                 title="还没有成员"
-                description="工作区成员会显示在这里，项目和审阅协作都基于这些成员展开。"
+                description="邀请后会出现在这里。"
               />
             ) : (
               <div className="overflow-x-auto">
@@ -193,7 +190,7 @@ export default function WorkspaceSettingsPage() {
                     <Row>
                       <HeaderCell>成员</HeaderCell>
                       <HeaderCell>角色</HeaderCell>
-                      <HeaderCell>加入时间</HeaderCell>
+                      <HeaderCell>加入</HeaderCell>
                       <HeaderCell className="w-[180px]">操作</HeaderCell>
                     </Row>
                   </Head>
@@ -231,18 +228,18 @@ export default function WorkspaceSettingsPage() {
                           <Cell>{formatRelativeTime(member.created_at || member.createdAt)}</Cell>
                           <Cell>
                             {isOwner ? (
-                              <span className="text-sm text-surface-400">所有者不可移除</span>
+                              <span className="text-sm text-surface-400">不可移除</span>
                             ) : (
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => {
-                                  if (window.confirm(`确定移除成员“${member.name}”吗？`)) {
+                                  if (window.confirm(`确定移除“${member.name}”吗？`)) {
                                     removeMemberMutation.mutate(member.id);
                                   }
                                 }}
                               >
-                                移除成员
+                                移除
                               </Button>
                             )}
                           </Cell>
@@ -259,8 +256,8 @@ export default function WorkspaceSettingsPage() {
         <section className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
           {invites.length === 0 ? (
             <EmptyState
-              title="没有待处理邀请"
-              description="新的邀请发出后，会在这里显示对应的待加入记录。"
+              title="没有邀请"
+              description="新的邀请会出现在这里。"
             />
           ) : (
             <div className="overflow-x-auto">
@@ -269,7 +266,7 @@ export default function WorkspaceSettingsPage() {
                   <Row>
                     <HeaderCell>邮箱 / 成员</HeaderCell>
                     <HeaderCell>角色</HeaderCell>
-                    <HeaderCell>发起时间</HeaderCell>
+                    <HeaderCell>发起</HeaderCell>
                     <HeaderCell className="w-[180px]">操作</HeaderCell>
                   </Row>
                 </Head>
@@ -288,7 +285,7 @@ export default function WorkspaceSettingsPage() {
                         <Cell>{formatRelativeTime(invite.created_at || invite.createdAt)}</Cell>
                         <Cell>
                           <Button size="sm" variant="ghost" onClick={() => cancelInviteMutation.mutate(invite.id)}>
-                            撤销邀请
+                            撤销
                           </Button>
                         </Cell>
                       </Row>
