@@ -70,6 +70,28 @@ function resolvePublicUploadPath(fileUrl) {
   return path.resolve(UPLOAD_DIR, relativePath);
 }
 
+function getPublicUploadUrl(filePath) {
+  if (!filePath) return null;
+
+  const resolvedUploadRoot = path.resolve(UPLOAD_DIR);
+  const absoluteFilePath = path.resolve(filePath);
+  const relativePath = path.relative(resolvedUploadRoot, absoluteFilePath);
+
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+
+  return `/uploads/${relativePath.split(path.sep).join('/')}`;
+}
+
+function withFileUrl(version) {
+  if (!version) return version;
+  return {
+    ...version,
+    fileUrl: getPublicUploadUrl(version.filePath),
+  };
+}
+
 async function attachThumbnailUrls(assets) {
   const currentVersionIds = assets
     .map((asset) => asset.currentVersionId)
@@ -477,7 +499,14 @@ router.get('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    res.json(detail);
+    const versions = (detail?.versions || []).map(withFileUrl);
+    const currentVersion = versions.find((version) => version.id === detail?.currentVersionId) || null;
+
+    res.json({
+      ...detail,
+      versions,
+      fileUrl: currentVersion?.fileUrl || getPublicUploadUrl(detail?.storagePath),
+    });
   } catch (err) {
     next(err);
   }
@@ -595,7 +624,7 @@ router.get('/:id/versions', authenticate, async (req, res, next) => {
       orderBy: { versionNumber: 'desc' },
     });
 
-    res.json({ data: versions });
+    res.json({ data: versions.map(withFileUrl) });
   } catch (err) {
     next(err);
   }

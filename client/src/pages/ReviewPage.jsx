@@ -39,11 +39,13 @@ import { getReviewApprovalMeta, normalizeAsset, normalizeReviewThread } from '..
 
 function resolveMediaUrl(asset, selectedVersion) {
   return (
+    selectedVersion?.fileUrl ||
     selectedVersion?.preview?.proxyUrl ||
     selectedVersion?.preview?.hlsUrl ||
     selectedVersion?.preview?.posterUrl ||
     selectedVersion?.fileUrl ||
     selectedVersion?.file_url ||
+    asset?.fileUrl ||
     asset?.preview?.proxyUrl ||
     asset?.url ||
     asset?.file_url ||

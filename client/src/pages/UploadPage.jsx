@@ -43,7 +43,9 @@ function UploadListItem({ item, onRemove, onRetry }) {
               <p className="truncate text-sm font-semibold">{item.file.name}</p>
               <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">{formatBytes(item.file.size)}</p>
             </div>
-            <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{uploadStatusCopy[item.status]}</span>
+            <span className="text-xs font-medium text-surface-500 dark:text-surface-400">
+              {uploadStatusCopy[item.status]}
+            </span>
           </div>
 
           {isUploading ? (
@@ -102,12 +104,13 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append('file', item.file);
       formData.append('project_id', projectId);
+
       if (selectedFolderId) {
         formData.append('folder_id', selectedFolderId);
       }
 
-      await client.post('/assets/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      return client.post('/assets/upload', formData, {
+        timeout: 0,
         onUploadProgress: (event) => {
           const progress = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
           setItems((current) => current.map((entry) => (
@@ -116,16 +119,32 @@ export default function UploadPage() {
         },
       });
     },
-    onSuccess: (_, item) => {
-      setItems((current) => current.map((entry) => (
-        entry.id === item.id ? { ...entry, status: 'success', progress: 100, error: '' } : entry
-      )));
+    onSuccess: (response, item) => {
+      const processingQueued = response?.data?.processingQueued;
+      const assetStatus = response?.data?.asset?.status;
+
+      if (processingQueued === false || assetStatus === 'failed') {
+        setItems((current) => current.map((entry) => (
+          entry.id === item.id
+            ? { ...entry, status: 'error', progress: 100, error: '上传成功，但后台处理未启动，请稍后重试。' }
+            : entry
+        )));
+      } else {
+        setItems((current) => current.map((entry) => (
+          entry.id === item.id ? { ...entry, status: 'success', progress: 100, error: '' } : entry
+        )));
+      }
+
       queryClient.invalidateQueries({ queryKey: ['project-assets', projectId] });
     },
     onError: (error, item) => {
+      const timeoutMessage = error.code === 'ECONNABORTED'
+        ? '上传超时，请检查网络后重试'
+        : null;
+
       setItems((current) => current.map((entry) => (
         entry.id === item.id
-          ? { ...entry, status: 'error', error: error.response?.data?.message || '上传失败，请稍后重试' }
+          ? { ...entry, status: 'error', error: timeoutMessage || error.response?.data?.message || '上传失败，请稍后重试' }
           : entry
       )));
     },
@@ -206,9 +225,7 @@ export default function UploadPage() {
             <UploadCloud size={24} />
           </div>
           <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里</h3>
-          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
-            或点击选择。
-          </p>
+          <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">或点击选择。</p>
           <div className="mt-6">
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
               选择文件
@@ -282,9 +299,11 @@ export default function UploadPage() {
                 onRetry={(id) => {
                   const target = items.find((entry) => entry.id === id);
                   if (!target) return;
+
                   setItems((current) => current.map((entry) => (
                     entry.id === id ? { ...entry, status: 'pending', progress: 0, error: '' } : entry
                   )));
+
                   uploadMutation.mutate({ ...target, status: 'pending', progress: 0, error: '' });
                 }}
               />
