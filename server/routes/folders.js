@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 // ── Validation ────────────────────────────────────────────
 

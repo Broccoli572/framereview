@@ -8,7 +8,7 @@ import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { enqueueAssetProcessing } from '../lib/mediaQueue.js';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 // ── Storage Config ───────────────────────────────────────
 
