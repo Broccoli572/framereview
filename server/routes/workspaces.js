@@ -31,7 +31,7 @@ async function requireWorkspaceOwnerOrAdmin(workspaceId, userId) {
 function normalizeWorkspaceMember(member) {
   return {
     id: member.user?.id || member.userId,
-    membershipId: member.id,
+    membershipId: member.userId,
     name: member.user?.name || '',
     email: member.user?.email || '',
     avatar: member.user?.avatar || null,
@@ -79,7 +79,7 @@ router.get('/', authenticate, async (req, res, next) => {
       id: membership.workspace.id,
       name: membership.workspace.name,
       slug: membership.workspace.slug,
-      description: membership.workspace.description,
+      description: null,
       avatar: membership.workspace.logo,
       role: membership.role,
       memberCount: membership.workspace._count.members,
@@ -113,7 +113,6 @@ router.post('/', authenticate, async (req, res, next) => {
     const workspace = await prisma.workspace.create({
       data: {
         name: data.name,
-        description: data.description,
         slug,
         members: {
           create: { userId: req.userId, role: 'owner' },
@@ -121,7 +120,7 @@ router.post('/', authenticate, async (req, res, next) => {
       },
     });
 
-    return created(res, { data: workspace });
+    return created(res, { data: { ...workspace, description: null } });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return validationFailed(res, err.errors);
@@ -147,7 +146,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
     if (!workspace) return notFound(res, '工作区不存在');
 
-    return ok(res, { data: workspace });
+    return ok(res, { data: { ...workspace, description: null } });
   } catch (err) {
     next(err);
   }
@@ -164,12 +163,11 @@ router.put('/:id', authenticate, async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.description !== undefined && { description: data.description }),
         ...(data.avatar !== undefined && { logo: data.avatar }),
       },
     });
 
-    return ok(res, { data: workspace });
+    return ok(res, { data: { ...workspace, description: null } });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return validationFailed(res, err.errors);
