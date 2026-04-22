@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm --prefix client install && npm --prefix client run build && npx prisma@5.22.0 generate",
+    "build": "node scripts/build.mjs",
+    "build:client": "npm --prefix client install && npm --prefix client run build",
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "worker:start": "npm --prefix media-worker run start",
