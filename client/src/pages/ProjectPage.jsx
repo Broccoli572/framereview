@@ -327,7 +327,7 @@ export default function ProjectPage() {
   }, [hasProcessingAssets, projectId, queryClient]);
 
   return (
-    <div className="grid min-h-[calc(100vh-7rem)] gap-4 xl:grid-cols-[232px_minmax(0,1fr)]">
+    <div className="grid min-h-[calc(100vh-6.25rem)] gap-3.5 xl:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="studio-panel order-2 rounded-2xl p-3 xl:order-1 xl:sticky xl:top-20 xl:h-fit">
         {projectQuery.isLoading || folderTreeQuery.isLoading ? (
           <ProjectSidebarSkeleton />
@@ -389,8 +389,8 @@ export default function ProjectPage() {
       </aside>
 
       <section className="order-1 space-y-4 xl:order-2">
-        <div className="studio-panel rounded-2xl p-4">
-          <div className="flex flex-col gap-5">
+        <div className="studio-panel rounded-2xl p-3.5">
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="studio-label">Project</p>
@@ -428,7 +428,7 @@ export default function ProjectPage() {
           </div>
         </div>
 
-        <div className="studio-panel rounded-2xl p-4">
+        <div className="studio-panel rounded-2xl p-3.5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.2fr)_repeat(3,minmax(0,180px))]">
               <Input

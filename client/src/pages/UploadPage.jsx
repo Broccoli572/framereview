@@ -273,10 +273,10 @@ export default function UploadPage() {
   const latestUploadedAsset = uploadedAssets[0] || null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <section className="studio-panel rounded-2xl p-5 lg:p-6">
+    <div className="mx-auto max-w-5xl space-y-3.5">
+      <section className="studio-panel rounded-2xl p-4 lg:p-5">
         <p className="studio-label">Upload</p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
+        <h2 className="mt-2.5 text-2xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
           上传后自动进入当前项目。
         </p>
@@ -298,7 +298,7 @@ export default function UploadPage() {
 
         <div
           className={clsx(
-            'studio-dropzone mt-5 rounded-2xl px-6 py-10 text-center transition-colors',
+            'studio-dropzone mt-5 rounded-2xl px-6 py-8 text-center transition-colors',
             isUploading
               ? 'opacity-80'
               : ''

@@ -157,7 +157,7 @@ export default function AppLayout() {
       <aside
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r px-4 py-4 backdrop-blur lg:static lg:translate-x-0',
-          'studio-sidebar lg:w-[216px] lg:px-2.5 lg:py-3',
+          'studio-sidebar lg:w-[204px] lg:px-2.5 lg:py-2.5',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -222,7 +222,7 @@ export default function AppLayout() {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="studio-topbar sticky top-0 z-30 border-b">
-          <div className="flex h-full items-center gap-3 px-4 lg:px-5">
+          <div className="flex h-full items-center gap-3 px-4">
             <button
               type="button"
               className="rounded-xl border border-surface-200 p-2 text-surface-600 lg:hidden dark:border-surface-800 dark:text-surface-300"
@@ -324,7 +324,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-5">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <Outlet />
         </main>
       </div>

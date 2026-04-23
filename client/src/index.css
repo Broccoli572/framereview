@@ -67,8 +67,21 @@
 @layer base {
   html {
     @apply scroll-smooth;
+    font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  @media (min-width: 1024px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  @media (min-width: 1680px) {
+    html {
+      font-size: 15.5px;
+    }
   }
 
   body {
@@ -279,7 +292,7 @@
   }
 
   .studio-topbar {
-    height: 52px;
+    height: 48px;
     border-color: var(--studio-border);
     background: var(--studio-topbar);
     backdrop-filter: blur(16px);
@@ -302,9 +315,9 @@
     align-items: center;
     gap: 0.5rem;
     border-radius: 0.55rem;
-    padding: 0.42rem 0.55rem;
+    padding: 0.36rem 0.5rem;
     color: var(--studio-subtle);
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-weight: 600;
     transition: color 0.15s ease, background 0.15s ease;
   }
@@ -381,7 +394,7 @@
 
   .studio-label {
     color: var(--studio-muted);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;

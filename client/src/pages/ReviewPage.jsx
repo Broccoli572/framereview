@@ -354,9 +354,9 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-7rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="space-y-4">
-        <div className="studio-panel rounded-2xl p-4">
+    <div className="grid min-h-[calc(100vh-6.25rem)] gap-3.5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="space-y-3.5">
+        <div className="studio-panel rounded-2xl p-3.5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <button
@@ -449,7 +449,7 @@ export default function ReviewPage() {
         </div>
 
         <div className="studio-panel overflow-hidden rounded-2xl">
-          <div className="studio-media-surface relative flex min-h-[320px] items-center justify-center md:min-h-[460px]">
+          <div className="studio-media-surface relative flex min-h-[300px] items-center justify-center md:min-h-[420px]">
             {!mediaUrl ? (
               <div className="flex flex-col items-center gap-3 px-6 text-center text-zinc-500">
                 <Film size={42} />
