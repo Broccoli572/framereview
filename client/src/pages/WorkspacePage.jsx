@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Film, Loader2, Maximize2, RotateCcw, Search, Trash2, UploadCloud, X } from 'lucide-react';
@@ -86,6 +86,84 @@ function getVideoFrameUrl(url) {
   return url.includes('#') ? url : `${url}#t=0.1`;
 }
 
+function captureVideoPoster(url) {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve({ posterUrl: null, width: null, height: null });
+      return;
+    }
+
+    const video = document.createElement('video');
+    let settled = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(payload || { posterUrl: null, width: null, height: null });
+    };
+
+    const capture = () => {
+      const width = Number(video.videoWidth || 0);
+      const height = Number(video.videoHeight || 0);
+      if (!width || !height) {
+        finish({ posterUrl: null, width: null, height: null });
+        return;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        finish({ posterUrl: null, width, height });
+        return;
+      }
+
+      context.drawImage(video, 0, 0, width, height);
+
+      try {
+        const posterUrl = canvas.toDataURL('image/jpeg', 0.82);
+        finish({ posterUrl, width, height });
+      } catch {
+        finish({ posterUrl: null, width, height });
+      }
+    };
+
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
+    video.addEventListener('error', () => finish({ posterUrl: null, width: null, height: null }), { once: true });
+    video.addEventListener('seeked', capture, { once: true });
+    video.addEventListener('loadedmetadata', () => {
+      const duration = Number(video.duration || 0);
+      const targetTime = duration > 0 ? Math.min(Math.max(duration * 0.12, 0.08), Math.max(duration - 0.02, 0.08)) : 0.08;
+
+      try {
+        if (duration > targetTime) {
+          video.currentTime = targetTime;
+        } else {
+          capture();
+        }
+      } catch {
+        capture();
+      }
+    }, { once: true });
+
+    timeoutId = setTimeout(() => finish({ posterUrl: null, width: null, height: null }), 8000);
+    video.src = url;
+  });
+}
+
 function WorkspaceSkeleton() {
   return (
     <div className="space-y-4">
@@ -99,16 +177,16 @@ function WorkspaceSkeleton() {
   );
 }
 
-function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPreview }) {
-  const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
+function VideoCard({ asset, aspectRatio, coverUrl, deleting, onAspectRatio, onDelete, onPreview }) {
+  const videoCoverUrl = !coverUrl ? getVideoFrameUrl(asset.previewUrl) : null;
 
   return (
     <article className="studio-card group relative self-start overflow-hidden rounded-2xl">
       <button type="button" className="block w-full text-left" onClick={() => onPreview(asset)}>
         <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
-          {asset.thumbnailUrl ? (
+          {coverUrl ? (
             <img
-              src={asset.thumbnailUrl}
+              src={coverUrl}
               alt={asset.name}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
@@ -162,7 +240,7 @@ function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPr
   );
 }
 
-function TrashPanel({ assets, loading, restoringId, clearing, onRestore, onEmpty, onClose }) {
+function TrashPanel({ assets, coverMap, loading, restoringId, clearing, onRestore, onEmpty, onClose }) {
   return (
     <section className="studio-panel rounded-2xl p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -191,14 +269,15 @@ function TrashPanel({ assets, loading, restoringId, clearing, onRestore, onEmpty
           </div>
         ) : (
           assets.map((asset) => {
-            const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
+            const coverUrl = asset.thumbnailUrl || coverMap[asset.id] || null;
+            const videoCoverUrl = !coverUrl ? getVideoFrameUrl(asset.previewUrl) : null;
             const deletedAt = asset.raw?.deletedAt || asset.raw?.deleted_at || asset.updatedAt;
 
             return (
               <div key={asset.id} className="flex items-center gap-3 py-3">
                 <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-surface-100 dark:bg-white/10">
-                  {asset.thumbnailUrl ? (
-                    <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover" />
+                  {coverUrl ? (
+                    <img src={coverUrl} alt={asset.name} className="h-full w-full object-cover" />
                   ) : videoCoverUrl ? (
                     <video src={videoCoverUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   ) : (
@@ -232,19 +311,20 @@ function TrashPanel({ assets, loading, restoringId, clearing, onRestore, onEmpty
 }
 
 function UploadQueue({ items }) {
-  if (!items.length) return null;
+  const visibleItems = items.filter((item) => item.status !== 'success').slice(0, 3);
+  if (!visibleItems.length) return null;
 
   return (
     <section className="studio-panel rounded-2xl p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">上传队列</p>
-          <p className="mt-0.5 text-xs studio-muted">{items.length} 个文件</p>
+          <p className="mt-0.5 text-xs studio-muted">{visibleItems.length} 个任务进行中</p>
         </div>
       </div>
 
       <div className="mt-3 space-y-2">
-        {items.slice(0, 3).map((item) => (
+        {visibleItems.map((item) => (
           <div key={item.id} className="studio-panel-soft rounded-xl p-3">
             <div className="flex items-start gap-3">
               <div className="mt-0.5">
@@ -368,6 +448,7 @@ export default function WorkspacePage() {
   const [previewAssetId, setPreviewAssetId] = useState(null);
   const [fallbackUploadTarget, setFallbackUploadTarget] = useState(null);
   const [assetAspectRatios, setAssetAspectRatios] = useState({});
+  const [assetPosterMap, setAssetPosterMap] = useState({});
   const [showTrash, setShowTrash] = useState(false);
 
   const workspaceQuery = useQuery({
@@ -576,6 +657,39 @@ export default function WorkspacePage() {
   const trashAssets = trashQuery.data?.items || [];
   const trashCount = trashQuery.data?.total || 0;
 
+  useEffect(() => {
+    let cancelled = false;
+    const queue = (assetsQuery.data || [])
+      .filter((asset) => asset?.id && !asset.thumbnailUrl && asset.previewUrl && !assetPosterMap[asset.id])
+      .slice(0, 40);
+
+    async function run() {
+      for (const asset of queue) {
+        if (cancelled) return;
+        const result = await captureVideoPoster(asset.previewUrl);
+        if (cancelled) return;
+
+        if (result?.posterUrl) {
+          setAssetPosterMap((current) => (
+            current[asset.id] ? current : { ...current, [asset.id]: result.posterUrl }
+          ));
+        }
+
+        if (result?.width > 0 && result?.height > 0) {
+          const ratio = `${result.width} / ${result.height}`;
+          setAssetAspectRatios((current) => (
+            current[asset.id] === ratio ? current : { ...current, [asset.id]: ratio }
+          ));
+        }
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [assetPosterMap, assetsQuery.data]);
+
   const handleDrop = (event) => {
     event.preventDefault();
     setDropActive(false);
@@ -602,59 +716,58 @@ export default function WorkspacePage() {
       }}
       onDrop={handleDrop}
     >
-      <section className="studio-panel overflow-hidden rounded-2xl p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="studio-label">Workflow</p>
-            <h2 className="mt-2 truncate text-2xl font-semibold">{workspaceQuery.data?.name || '工作区'}</h2>
-            <p className="mt-2 text-sm studio-muted">
-              拖拽视频到页面任意位置即可上传，素材会直接出现在下方工作流。
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-full min-w-[220px] sm:w-72">
-              <Input
-                value={searchValue}
-                onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="搜索视频"
-                leftIcon={Search}
-              />
+      <section className="studio-panel overflow-hidden rounded-3xl p-4 sm:p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="studio-label">Workflow</p>
+              <h2 className="mt-2 truncate text-2xl font-semibold">{workspaceQuery.data?.name || '工作区'}</h2>
+              <p className="mt-2 max-w-2xl text-sm studio-muted">
+                直接拖拽视频到页面任意位置即可上传，素材会自动进入工作流。
+              </p>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                handleFiles(event.target.files);
-                event.target.value = '';
-              }}
-            />
-            <Button leftIcon={UploadCloud} onClick={() => fileInputRef.current?.click()} loading={uploadMutation.isPending}>
-              上传视频
-            </Button>
-            <Button variant="ghost" leftIcon={Trash2} onClick={() => setShowTrash((current) => !current)}>
-              回收站{trashCount ? ` ${trashCount}` : ''}
-            </Button>
-          </div>
-        </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <div className="studio-stat rounded-xl p-3">
-            <p className="studio-label">视频</p>
-            <p className="mt-2 text-xl font-semibold">{assetsQuery.data?.length || 0}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-medium text-surface-700 dark:bg-surface-800 dark:text-surface-200">
+                视频 {assetsQuery.data?.length || 0}
+              </span>
+              <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-medium text-surface-700 dark:bg-surface-800 dark:text-surface-200">
+                上传中 {uploadItems.filter((item) => item.status === 'uploading').length}
+              </span>
+              <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-medium text-surface-700 dark:bg-surface-800 dark:text-surface-200">
+                回收站 {trashCount}
+              </span>
+            </div>
           </div>
-          <div className="studio-stat rounded-xl p-3">
-            <p className="studio-label">上传中</p>
-            <p className="mt-2 text-xl font-semibold">{uploadItems.filter((item) => item.status === 'uploading').length}</p>
-          </div>
-          <div className="studio-stat rounded-xl p-3">
-            <p className="studio-label">最近更新</p>
-            <p className="mt-2 text-sm font-medium">
-              {assetsQuery.data?.[0]?.updatedAt ? formatRelativeTime(assetsQuery.data[0].updatedAt) : '--'}
-            </p>
+
+          <div className="rounded-2xl border border-surface-200/70 bg-surface-50/60 p-2 dark:border-surface-700 dark:bg-surface-900/50">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-full min-w-[220px] flex-1">
+                <Input
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder="搜索视频"
+                  leftIcon={Search}
+                />
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  handleFiles(event.target.files);
+                  event.target.value = '';
+                }}
+              />
+              <Button leftIcon={UploadCloud} onClick={() => fileInputRef.current?.click()} loading={uploadMutation.isPending}>
+                上传视频
+              </Button>
+              <Button variant="ghost" leftIcon={Trash2} onClick={() => setShowTrash((current) => !current)}>
+                回收站{trashCount ? ` ${trashCount}` : ''}
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -664,6 +777,7 @@ export default function WorkspacePage() {
       {showTrash && (
         <TrashPanel
           assets={trashAssets}
+          coverMap={assetPosterMap}
           loading={trashQuery.isLoading}
           restoringId={restoreAssetMutation.variables}
           clearing={emptyTrashMutation.isPending}
@@ -696,6 +810,7 @@ export default function WorkspacePage() {
               <VideoCard
                 key={asset.id}
                 asset={asset}
+                coverUrl={asset.thumbnailUrl || assetPosterMap[asset.id] || null}
                 aspectRatio={assetAspectRatios[asset.id] || asset.aspectRatio}
                 onAspectRatio={(assetId, aspectRatio) => {
                   setAssetAspectRatios((current) => (
