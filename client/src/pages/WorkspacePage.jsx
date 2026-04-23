@@ -357,19 +357,56 @@ function UploadQueue({ items }) {
   );
 }
 
+function getAspectRatioValue(aspectRatio) {
+  if (typeof aspectRatio === 'number' && Number.isFinite(aspectRatio)) return aspectRatio;
+  if (typeof aspectRatio !== 'string') return 16 / 9;
+
+  const [rawWidth, rawHeight] = aspectRatio.split('/').map((part) => Number(part.trim()));
+  if (!rawWidth || !rawHeight) return 16 / 9;
+  return rawWidth / rawHeight;
+}
+
 function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, onClose, onOpenReview }) {
   if (!asset) return null;
 
   const mediaUrl = resolveMediaUrl(asset, detail);
+  const ratioValue = getAspectRatioValue(aspectRatio);
+  const isPortrait = ratioValue < 0.9;
+  const mediaFrameStyle = isPortrait
+    ? {
+        aspectRatio,
+        width: `min(calc(min(68svh, 620px) * ${ratioValue}), 100%)`,
+      }
+    : { aspectRatio };
 
   return (
     <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4">
       <div
-        className="pointer-events-auto max-h-[calc(100svh-1.5rem)] w-full max-w-[min(1120px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-2.5 text-surface-950 shadow-[0_18px_54px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-zinc-950 dark:text-white sm:max-h-[calc(100svh-2rem)] sm:max-w-[min(1120px,calc(100vw-2rem))] sm:p-3"
+        className={clsx(
+          'pointer-events-auto max-h-[calc(100svh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-surface-200 bg-white p-2.5 text-surface-950 shadow-[0_18px_54px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-zinc-950 dark:text-white sm:max-h-[calc(100svh-2rem)] sm:p-3',
+          isPortrait
+            ? 'sm:w-auto sm:max-w-[min(760px,calc(100vw-2rem))]'
+            : 'max-w-[min(1120px,calc(100vw-1.5rem))] sm:max-w-[min(1120px,calc(100vw-2rem))]'
+        )}
         onClick={(event) => event.stopPropagation()}
       >
-      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]">
-        <div className="max-h-[58svh] min-h-[180px] overflow-hidden rounded-xl bg-black sm:max-h-[68svh]" style={{ aspectRatio }}>
+      <div
+        className={clsx(
+          'grid min-w-0 gap-3',
+          isPortrait
+            ? 'lg:grid-cols-[minmax(180px,auto)_minmax(220px,280px)] lg:justify-center'
+            : 'lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]'
+        )}
+      >
+        <div
+          className={clsx(
+            'overflow-hidden rounded-xl bg-black',
+            isPortrait
+              ? 'mx-auto min-w-[180px] max-w-full'
+              : 'max-h-[58svh] min-h-[180px] w-full sm:max-h-[68svh]'
+          )}
+          style={mediaFrameStyle}
+        >
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="animate-spin" size={28} />
