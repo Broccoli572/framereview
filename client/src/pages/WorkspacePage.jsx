@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Film, Loader2, Maximize2, Search, UploadCloud, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Film, Loader2, Maximize2, Search, Trash2, UploadCloud, X } from 'lucide-react';
 import clsx from 'clsx';
 import client from '../api/client';
-import { finalizeUpload, initiateUpload, listAssets, uploadAsset, uploadChunk } from '../api/assets';
+import { deleteAsset, finalizeUpload, initiateUpload, listAssets, uploadAsset, uploadChunk } from '../api/assets';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
@@ -89,58 +89,66 @@ function WorkspaceSkeleton() {
   );
 }
 
-function VideoCard({ asset, aspectRatio, onAspectRatio, onPreview }) {
+function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPreview }) {
   const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
 
   return (
-    <button
-      type="button"
-      className="studio-card group overflow-hidden rounded-2xl text-left"
-      onClick={() => onPreview(asset)}
-    >
-      <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
-        {asset.thumbnailUrl ? (
-          <img
-            src={asset.thumbnailUrl}
-            alt={asset.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : videoCoverUrl ? (
-          <video
-            src={videoCoverUrl}
-            muted
-            playsInline
-            preload="metadata"
-            className="pointer-events-none h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            onLoadedMetadata={(event) => {
-              const video = event.currentTarget;
-              if (video.videoWidth > 0 && video.videoHeight > 0) {
-                onAspectRatio(asset.id, `${video.videoWidth} / ${video.videoHeight}`);
-              }
-            }}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <Film size={32} className="studio-muted" />
-          </div>
-        )}
+    <article className="studio-card group relative overflow-hidden rounded-2xl">
+      <button type="button" className="block w-full text-left" onClick={() => onPreview(asset)}>
+        <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
+          {asset.thumbnailUrl ? (
+            <img
+              src={asset.thumbnailUrl}
+              alt={asset.name}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          ) : videoCoverUrl ? (
+            <video
+              src={videoCoverUrl}
+              muted
+              playsInline
+              preload="metadata"
+              className="pointer-events-none h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                  onAspectRatio(asset.id, `${video.videoWidth} / ${video.videoHeight}`);
+                }
+              }}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Film size={32} className="studio-muted" />
+            </div>
+          )}
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent px-3 pb-3 pt-12 text-white">
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
-            <span className="text-xs font-medium">{asset.durationLabel}</span>
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent px-3 pb-3 pt-12 text-white">
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
+              <span className="text-xs font-medium">{asset.durationLabel}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-2 p-3">
-        <p className="line-clamp-1 text-sm font-semibold">{asset.name}</p>
-        <div className="flex items-center justify-between gap-3 text-xs studio-muted">
-          <span>{asset.sizeLabel}</span>
-          <span>{asset.updatedLabel}</span>
+        <div className="space-y-2 p-3">
+          <p className="line-clamp-1 text-sm font-semibold">{asset.name}</p>
+          <div className="flex items-center justify-between gap-3 text-xs studio-muted">
+            <span>{asset.sizeLabel}</span>
+            <span>{asset.updatedLabel}</span>
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      <button
+        type="button"
+        className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-600 shadow-sm ring-1 ring-black/5 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-950/80 dark:text-red-300 dark:ring-white/10 dark:hover:bg-red-950/70"
+        aria-label={`删除 ${asset.name}`}
+        disabled={deleting}
+        onClick={() => onDelete(asset)}
+      >
+        {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+      </button>
+    </article>
   );
 }
 
@@ -411,11 +419,27 @@ export default function WorkspacePage() {
     },
   });
 
+  const deleteAssetMutation = useMutation({
+    mutationFn: (assetId) => deleteAsset(assetId),
+    onSuccess: (_, assetId) => {
+      if (uploadTarget?.id) {
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-assets', uploadTarget.id] });
+      }
+      setPreviewAssetId((current) => (current === assetId ? null : current));
+    },
+  });
+
   const handleFiles = useCallback((fileList) => {
     const files = Array.from(fileList || []).filter((file) => file.type.startsWith('video/'));
     if (!files.length) return;
     uploadMutation.mutate(files);
   }, [uploadMutation]);
+
+  const handleDeleteAsset = useCallback((asset) => {
+    if (!asset?.id || deleteAssetMutation.isPending) return;
+    if (!window.confirm(`确定删除「${asset.name || '这个视频'}」吗？`)) return;
+    deleteAssetMutation.mutate(asset.id);
+  }, [deleteAssetMutation]);
 
   const assets = (assetsQuery.data || []).filter((asset) => (
     !searchValue.trim() || asset.name.toLowerCase().includes(searchValue.trim().toLowerCase())
@@ -532,6 +556,8 @@ export default function WorkspacePage() {
                     current[assetId] === aspectRatio ? current : { ...current, [assetId]: aspectRatio }
                   ));
                 }}
+                deleting={deleteAssetMutation.isPending && deleteAssetMutation.variables === asset.id}
+                onDelete={handleDeleteAsset}
                 onPreview={(item) => setPreviewAssetId(item.id)}
               />
             ))}
