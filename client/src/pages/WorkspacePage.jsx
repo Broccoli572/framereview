@@ -80,9 +80,9 @@ function WorkspaceSkeleton() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-36 w-full rounded-2xl" />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
         {Array.from({ length: 8 }).map((_, index) => (
-          <Skeleton key={index} className="h-56 w-full rounded-2xl" />
+          <Skeleton key={index} className="h-44 w-full rounded-2xl" />
         ))}
       </div>
     </div>
@@ -130,9 +130,9 @@ function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPr
           </div>
         </div>
 
-        <div className="space-y-2 p-3">
-          <p className="line-clamp-1 text-sm font-semibold">{asset.name}</p>
-          <div className="flex items-center justify-between gap-3 text-xs studio-muted">
+        <div className="space-y-1.5 p-2.5">
+          <p className="line-clamp-1 text-[13px] font-semibold">{asset.name}</p>
+          <div className="flex items-center justify-between gap-2 text-[11px] studio-muted">
             <span>{asset.sizeLabel}</span>
             <span>{asset.updatedLabel}</span>
           </div>
@@ -529,9 +529,9 @@ export default function WorkspacePage() {
 
       <section className="space-y-3">
         {assetsQuery.isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
             {Array.from({ length: 8 }).map((_, index) => (
-              <Skeleton key={index} className="h-56 w-full rounded-2xl" />
+              <Skeleton key={index} className="h-44 w-full rounded-2xl" />
             ))}
           </div>
         ) : assets.length === 0 ? (
@@ -545,7 +545,7 @@ export default function WorkspacePage() {
             />
           </div>
         ) : (
-          <div className="grid auto-rows-auto gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid auto-rows-auto grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
             {assets.map((asset) => (
               <VideoCard
                 key={asset.id}
