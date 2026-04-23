@@ -50,6 +50,17 @@ function getFallbackAssetStatus() {
   return 'ready';
 }
 
+function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
 async function queueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type }) {
   try {
     await enqueueAssetProcessing({ assetId, assetVersionId, filePath, mimeType, type });
@@ -252,7 +263,8 @@ router.put('/upload/:uploadId/chunk', authenticate, upload.single('chunk'), asyn
 
     // 检查是否上传完成
     const stats = fs.statSync(chunkPath);
-    const progress = Number((BigInt(stats.size) / asset.sizeBytes) * 100);
+    const expectedSize = Number(asset.sizeBytes || 0n);
+    const progress = expectedSize > 0 ? Math.round((stats.size / expectedSize) * 100) : 0;
 
     res.json({ progress: Math.min(progress, 100), received: stats.size });
   } catch (err) {
@@ -277,8 +289,7 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
     }
 
     // 计算文件 SHA256
-    const fileBuffer = fs.readFileSync(chunkPath);
-    const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const sha256 = await hashFile(chunkPath);
 
     // 移动到最终位置
     const ext = path.extname(asset.originalName || asset.name) || '';
@@ -377,7 +388,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     const finalPath = path.join(assetDir, `v1${ext}`);
     fs.renameSync(req.file.path, finalPath);
 
-    const sha256 = crypto.createHash('sha256').update(fs.readFileSync(finalPath)).digest('hex');
+    const sha256 = await hashFile(finalPath);
 
     const asset = await prisma.asset.create({
       data: {

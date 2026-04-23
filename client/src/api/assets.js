@@ -4,6 +4,12 @@ import client from './client';
  * Asset API
  */
 
+const UPLOAD_TIMEOUT = 0;
+
+function normalizeUploadUrl(uploadUrl) {
+  return uploadUrl?.replace(/^\/api/, '') || uploadUrl;
+}
+
 export function initiateUpload({ project_id, folder_id, file_name, file_size, content_type, parent_asset_id }) {
   return client.post('/assets/upload/initiate', {
     project_id,
@@ -16,29 +22,36 @@ export function initiateUpload({ project_id, folder_id, file_name, file_size, co
 }
 
 export function uploadChunk(uploadUrl, chunk, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+  const formData = new FormData();
+  formData.append('chunk', chunk, 'chunk.bin');
 
-    if (onProgress) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-    }
+  return client.put(normalizeUploadUrl(uploadUrl), formData, {
+    timeout: UPLOAD_TIMEOUT,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    onUploadProgress: (event) => {
+      if (!onProgress || !event.total) return;
+      onProgress(Math.round((event.loaded / event.total) * 100));
+    },
+  });
+}
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-      } else {
-        reject(new Error(`Upload chunk failed: ${xhr.status}`));
-      }
-    };
+export function uploadAsset({ file, project_id, folder_id, onProgress }) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('project_id', project_id);
+  if (folder_id) {
+    formData.append('folder_id', folder_id);
+  }
 
-    xhr.onerror = () => reject(new Error('Upload chunk network error'));
-    xhr.send(chunk);
+  return client.post('/assets/upload', formData, {
+    timeout: UPLOAD_TIMEOUT,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    onUploadProgress: (event) => {
+      if (!onProgress || !event.total) return;
+      onProgress(Math.round((event.loaded / event.total) * 100));
+    },
   });
 }
 
@@ -48,6 +61,8 @@ export function finalizeUpload(uploadId, { folder_id, name, description, tags })
     name,
     description: description || '',
     tags: tags || [],
+  }, {
+    timeout: UPLOAD_TIMEOUT,
   });
 }
 

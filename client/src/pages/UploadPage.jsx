@@ -8,8 +8,12 @@ import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import ProgressBar from '../components/ui/ProgressBar';
+import { finalizeUpload, initiateUpload, uploadAsset, uploadChunk } from '../api/assets';
 import { normalizeAsset } from '../lib/view-models';
 import { formatBytes } from '../lib/utils';
+
+const CHUNK_UPLOAD_THRESHOLD = 20 * 1024 * 1024;
+const CHUNK_SIZE = 8 * 1024 * 1024;
 
 const uploadStatusCopy = {
   pending: '待上传',
@@ -17,6 +21,14 @@ const uploadStatusCopy = {
   success: '已上传',
   error: '失败',
 };
+
+function getUploadErrorMessage(error) {
+  if (error?.code === 'ECONNABORTED') {
+    return '上传耗时过长，连接已中断。请重试，系统会使用更稳的上传链路。';
+  }
+
+  return error?.response?.data?.message || error?.message || '上传失败，请稍后重试。';
+}
 
 function UploadListItem({ item, onRemove, onRetry }) {
   const isUploading = item.status === 'uploading';
@@ -108,6 +120,7 @@ export default function UploadPage() {
   const [selectedFolderId, setSelectedFolderId] = useState('');
   const [items, setItems] = useState([]);
   const [uploadedAssets, setUploadedAssets] = useState([]);
+  const [queueRunning, setQueueRunning] = useState(false);
 
   const projectQuery = useQuery({
     queryKey: ['project', projectId],
@@ -129,24 +142,58 @@ export default function UploadPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async (item) => {
-      const formData = new FormData();
-      formData.append('file', item.file);
-      formData.append('project_id', projectId);
-      if (selectedFolderId) {
-        formData.append('folder_id', selectedFolderId);
+      const setProgress = (progress) => {
+        setItems((current) => current.map((entry) => (
+          entry.id === item.id
+            ? { ...entry, status: 'uploading', progress: Math.max(1, Math.min(progress, 99)) }
+            : entry
+        )));
+      };
+
+      if (item.file.size < CHUNK_UPLOAD_THRESHOLD) {
+        const response = await uploadAsset({
+          file: item.file,
+          project_id: projectId,
+          folder_id: selectedFolderId || null,
+          onProgress: setProgress,
+        });
+
+        return response.data;
       }
 
-      const response = await client.post('/assets/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (event) => {
-          const progress = event.total ? Math.round((event.loaded / event.total) * 100) : 0;
-          setItems((current) => current.map((entry) => (
-            entry.id === item.id ? { ...entry, status: 'uploading', progress } : entry
-          )));
-        },
+      const initiateResponse = await initiateUpload({
+        project_id: projectId,
+        folder_id: selectedFolderId || null,
+        file_name: item.file.name,
+        file_size: item.file.size,
+        content_type: item.file.type || 'application/octet-stream',
       });
 
-      return response.data;
+      const uploadId = initiateResponse.data?.uploadId;
+      const uploadUrl = initiateResponse.data?.uploadUrl;
+      if (!uploadId || !uploadUrl) {
+        throw new Error('无法创建上传任务。');
+      }
+
+      let uploadedBytes = 0;
+      for (let start = 0; start < item.file.size; start += CHUNK_SIZE) {
+        const chunk = item.file.slice(start, Math.min(start + CHUNK_SIZE, item.file.size));
+        await uploadChunk(uploadUrl, chunk, (chunkProgress) => {
+          const chunkUploaded = Math.round((chunk.size * chunkProgress) / 100);
+          setProgress(Math.round(((uploadedBytes + chunkUploaded) / item.file.size) * 100));
+        });
+        uploadedBytes += chunk.size;
+        setProgress(Math.round((uploadedBytes / item.file.size) * 100));
+      }
+
+      const finalizeResponse = await finalizeUpload(uploadId, {
+        folder_id: selectedFolderId || null,
+        name: item.file.name,
+        description: '',
+        tags: [],
+      });
+
+      return finalizeResponse.data;
     },
     onSuccess: (payload, item) => {
       setItems((current) => current.map((entry) => (
@@ -167,7 +214,7 @@ export default function UploadPage() {
     onError: (error, item) => {
       setItems((current) => current.map((entry) => (
         entry.id === item.id
-          ? { ...entry, status: 'error', error: error.response?.data?.message || '上传失败，请稍后重试。' }
+          ? { ...entry, status: 'error', error: getUploadErrorMessage(error) }
           : entry
       )));
     },
@@ -192,15 +239,28 @@ export default function UploadPage() {
 
   const handleSelectFiles = (event) => {
     addFiles(Array.from(event.target.files || []));
+    event.target.value = '';
   };
 
-  const uploadPendingFiles = useCallback(() => {
-    items
-      .filter((item) => item.status === 'pending' || item.status === 'error')
-      .forEach((item) => {
-        uploadMutation.mutate(item);
-      });
-  }, [items, uploadMutation]);
+  const uploadPendingFiles = useCallback(async () => {
+    if (queueRunning) return;
+
+    const queue = items.filter((item) => item.status === 'pending' || item.status === 'error');
+    if (!queue.length) return;
+
+    setQueueRunning(true);
+    try {
+      for (const item of queue) {
+        try {
+          await uploadMutation.mutateAsync(item);
+        } catch {
+          // Keep the rest of the queue moving; each item renders its own error.
+        }
+      }
+    } finally {
+      setQueueRunning(false);
+    }
+  }, [items, queueRunning, uploadMutation]);
 
   const allUploaded = useMemo(
     () => items.length > 0 && items.every((item) => item.status === 'success'),
@@ -209,6 +269,7 @@ export default function UploadPage() {
 
   const totalSize = items.reduce((sum, item) => sum + item.file.size, 0);
   const uploadingCount = items.filter((item) => item.status === 'uploading').length;
+  const isUploading = queueRunning || uploadingCount > 0;
   const latestUploadedAsset = uploadedAssets[0] || null;
 
   return (
@@ -238,7 +299,7 @@ export default function UploadPage() {
         <div
           className={clsx(
             'mt-6 rounded-[28px] border-2 border-dashed px-6 py-10 text-center transition-colors',
-            uploadingCount
+            isUploading
               ? 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-950'
               : 'border-surface-300 bg-surface-50 hover:border-brand-400 hover:bg-brand-50/40 dark:border-surface-700 dark:bg-surface-950 dark:hover:border-brand-600'
           )}
@@ -336,13 +397,13 @@ export default function UploadPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="ghost" onClick={() => setItems([])} disabled={uploadingCount > 0}>
+              <Button variant="ghost" onClick={() => setItems([])} disabled={isUploading}>
                 清空
               </Button>
               {allUploaded ? (
                 <Button onClick={() => navigate(`/project/${projectId}`)}>查看项目列表</Button>
               ) : (
-                <Button onClick={uploadPendingFiles} loading={uploadingCount > 0}>
+                <Button onClick={uploadPendingFiles} loading={isUploading}>
                   开始上传
                 </Button>
               )}
