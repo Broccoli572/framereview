@@ -36,11 +36,11 @@ function UploadListItem({ item, onRemove, onRetry }) {
   const isSuccess = item.status === 'success';
 
   return (
-    <div className="rounded-[22px] border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900">
+    <div className="studio-card rounded-2xl p-3.5">
       <div className="flex items-start gap-4">
         <div
           className={clsx(
-            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl',
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
             isSuccess
               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
               : isError
@@ -57,7 +57,7 @@ function UploadListItem({ item, onRemove, onRetry }) {
               <p className="truncate text-sm font-semibold">{item.file.name}</p>
               <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">{formatBytes(item.file.size)}</p>
             </div>
-            <span className="text-xs font-medium text-surface-500 dark:text-surface-400">{uploadStatusCopy[item.status]}</span>
+            <span className="text-xs font-semibold text-zinc-500">{uploadStatusCopy[item.status]}</span>
           </div>
 
           {isUploading ? (
@@ -88,7 +88,7 @@ function UploadListItem({ item, onRemove, onRetry }) {
 
 function UploadedAssetItem({ asset, onOpenReview, onOpenProject }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[22px] border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900 md:flex-row md:items-center md:justify-between">
+    <div className="studio-card flex flex-col gap-4 rounded-2xl p-3.5 md:flex-row md:items-center md:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{asset.name}</p>
@@ -273,40 +273,40 @@ export default function UploadPage() {
   const latestUploadedAsset = uploadedAssets[0] || null;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <section className="rounded-[28px] border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-800 dark:bg-surface-900 lg:p-8">
-        <p className="text-sm font-medium text-surface-500 dark:text-surface-400">上传</p>
+    <div className="mx-auto max-w-5xl space-y-4">
+      <section className="studio-panel rounded-2xl p-5 lg:p-6">
+        <p className="studio-label">Upload</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
           上传后自动进入当前项目。
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">文件数</p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <div className="studio-stat rounded-xl p-3">
+            <p className="studio-label">文件数</p>
             <p className="mt-2 text-2xl font-semibold">{items.length}</p>
           </div>
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">上传中</p>
+          <div className="studio-stat rounded-xl p-3">
+            <p className="studio-label">上传中</p>
             <p className="mt-2 text-2xl font-semibold">{uploadingCount}</p>
           </div>
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">总大小</p>
+          <div className="studio-stat rounded-xl p-3">
+            <p className="studio-label">总大小</p>
             <p className="mt-2 text-2xl font-semibold">{formatBytes(totalSize)}</p>
           </div>
         </div>
 
         <div
           className={clsx(
-            'mt-6 rounded-[28px] border-2 border-dashed px-6 py-10 text-center transition-colors',
+            'studio-dropzone mt-5 rounded-2xl px-6 py-10 text-center transition-colors',
             isUploading
-              ? 'border-surface-300 bg-surface-50 dark:border-surface-700 dark:bg-surface-950'
-              : 'border-surface-300 bg-surface-50 hover:border-brand-400 hover:bg-brand-50/40 dark:border-surface-700 dark:bg-surface-950 dark:hover:border-brand-600'
+              ? 'opacity-80'
+              : ''
           )}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900">
+          <div className="studio-brand-mark mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-white">
             <UploadCloud size={24} />
           </div>
           <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里</h3>
@@ -314,7 +314,7 @@ export default function UploadPage() {
             支持多选视频文件。
           </p>
           <div className="mt-6">
-            <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500">
               选择文件
               <input type="file" className="hidden" multiple onChange={handleSelectFiles} />
             </label>
@@ -322,12 +322,12 @@ export default function UploadPage() {
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
+          <div className="studio-panel-soft rounded-xl p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <FolderTree size={16} />
               目标目录
             </div>
-            <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+            <p className="mt-2 text-sm text-zinc-500">
               不选择则进入根目录。
             </p>
           </div>
@@ -335,7 +335,7 @@ export default function UploadPage() {
           <select
             value={selectedFolderId}
             onChange={(event) => setSelectedFolderId(event.target.value)}
-            className="rounded-2xl border border-surface-300 bg-white px-4 py-3 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+            className="studio-input rounded-xl px-4 py-3 text-sm"
           >
             <option value="">项目根目录</option>
             {(foldersQuery.data || []).map((folder) => (
@@ -348,7 +348,7 @@ export default function UploadPage() {
       </section>
 
       {uploadedAssets.length > 0 ? (
-        <section className="space-y-4 rounded-[26px] border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-900/10">
+        <section className="space-y-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">已成功上传的素材</h3>
@@ -389,7 +389,7 @@ export default function UploadPage() {
         />
       ) : (
         <section className="space-y-4">
-          <div className="flex flex-col gap-4 rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900 md:flex-row md:items-center md:justify-between">
+          <div className="studio-panel flex flex-col gap-4 rounded-2xl p-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-lg font-semibold">上传队列</h3>
               <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">

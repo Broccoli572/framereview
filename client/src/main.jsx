@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import useAuthStore from './stores/authStore';
+import { useThemeStore } from './stores/themeStore';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -22,10 +23,12 @@ const queryClient = new QueryClient({
 function Root() {
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const initTheme = useThemeStore((s) => s.init);
 
   useEffect(() => {
+    initTheme();
     fetchUser();
-  }, [fetchUser]);
+  }, [fetchUser, initTheme]);
 
   if (isLoading) {
     return (

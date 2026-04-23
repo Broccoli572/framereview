@@ -43,10 +43,8 @@ function AppNavLink({ to, icon: Icon, label, end = false, badge }) {
       end={end}
       className={({ isActive }) =>
         clsx(
-          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
-          isActive
-            ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-            : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-100'
+          'studio-nav-link group',
+          isActive && 'studio-nav-link-active'
         )
       }
     >
@@ -146,7 +144,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-surface-50 text-surface-900 dark:bg-surface-950 dark:text-surface-100">
+    <div className="studio-shell flex min-h-screen">
       {mobileMenuOpen ? (
         <button
           type="button"
@@ -159,17 +157,18 @@ export default function AppLayout() {
       <aside
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-surface-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-surface-800 dark:bg-surface-950/95 lg:static lg:translate-x-0',
+          'studio-sidebar lg:w-[216px] lg:px-2.5 lg:py-3',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex items-center justify-between rounded-2xl border border-surface-200 bg-surface-50 px-4 py-3 dark:border-surface-800 dark:bg-surface-900">
+        <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-2.5 py-2">
           <Link to="/" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900">
+            <div className="studio-brand-mark flex h-8 w-8 items-center justify-center rounded-lg text-white">
               <Film size={18} />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">FrameReview</p>
-              <p className="truncate text-xs text-surface-500 dark:text-surface-400">协作审阅</p>
+              <p className="truncate text-sm font-semibold tracking-tight">粿条</p>
+              <p className="truncate text-[10px] text-zinc-500">FrameReview</p>
             </div>
           </Link>
 
@@ -183,9 +182,9 @@ export default function AppLayout() {
           </button>
         </div>
 
-        <div className="mt-5 space-y-6 overflow-y-auto pb-4">
+        <div className="mt-4 space-y-5 overflow-y-auto pb-4">
           <section className="space-y-2">
-            <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">全局</p>
+            <p className="studio-label px-2">工作区</p>
             <div className="space-y-1">
               {primaryNav.map((item) => (
                 <AppNavLink key={item.to} to={item.to} icon={item.icon} label={item.label} end={item.end} />
@@ -197,7 +196,7 @@ export default function AppLayout() {
           {workflowNav.length ? (
             <section className="space-y-3">
               <div className="px-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前工作流</p>
+                <p className="studio-label">当前工作流</p>
               </div>
               <div className="space-y-1">
                 {workflowNav.map((item) => (
@@ -208,11 +207,11 @@ export default function AppLayout() {
           ) : null}
 
           {normalizedAsset ? (
-            <section className="rounded-2xl border border-surface-200 bg-surface-50 p-4 dark:border-surface-800 dark:bg-surface-900">
+            <section className="studio-panel-soft rounded-xl p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前素材</p>
-                  <p className="mt-1 line-clamp-2 text-sm font-medium">{normalizedAsset.name}</p>
+                  <p className="studio-label">当前素材</p>
+                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-zinc-100">{normalizedAsset.name}</p>
                 </div>
                 <Badge variant={normalizedAsset.statusVariant}>{normalizedAsset.statusLabel}</Badge>
               </div>
@@ -222,8 +221,8 @@ export default function AppLayout() {
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-surface-200 bg-white/90 backdrop-blur dark:border-surface-800 dark:bg-surface-950/85">
-          <div className="flex items-center gap-3 px-4 py-3 lg:px-6">
+        <header className="studio-topbar sticky top-0 z-30 border-b">
+          <div className="flex h-full items-center gap-3 px-4 lg:px-5">
             <button
               type="button"
               className="rounded-xl border border-surface-200 p-2 text-surface-600 lg:hidden dark:border-surface-800 dark:text-surface-300"
@@ -248,12 +247,12 @@ export default function AppLayout() {
                   </div>
                 ))}
               </div>
-              <div className="mt-1 flex items-center gap-3">
-                <h1 className="truncate text-lg font-semibold">{pageContext.title || 'FrameReview'}</h1>
+              <div className="mt-0.5 flex items-center gap-3">
+                <h1 className="truncate text-sm font-bold tracking-tight text-zinc-50">{pageContext.title || 'FrameReview'}</h1>
                 {loadingContext ? <Spinner size="sm" /> : null}
               </div>
               {pageContext.subtitle ? (
-                <p className="mt-1 hidden text-sm text-surface-500 dark:text-surface-400 md:block">
+                <p className="mt-0.5 hidden text-xs text-zinc-500 md:block">
                   {pageContext.subtitle}
                 </p>
               ) : null}
@@ -272,7 +271,7 @@ export default function AppLayout() {
                 variant="secondary"
                 size="sm"
                 onClick={() => navigate(pageContext.primaryAction.href)}
-                className="hidden md:inline-flex"
+                className="hidden h-8 md:inline-flex"
               >
                 {pageContext.primaryAction.label}
               </Button>
@@ -308,11 +307,11 @@ export default function AppLayout() {
             <Dropdown
               align="right"
               trigger={(
-                <div className="flex cursor-pointer items-center gap-3 rounded-2xl border border-surface-200 bg-white px-2.5 py-1.5 dark:border-surface-800 dark:bg-surface-900">
+                <div className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2 py-1.5">
                   <Avatar src={user?.avatar} name={user?.name} size="sm" />
                   <div className="hidden min-w-0 text-left md:block">
-                    <p className="truncate text-sm font-medium">{user?.name || '当前用户'}</p>
-                    <p className="truncate text-xs text-surface-500 dark:text-surface-400">{user?.email || '已登录'}</p>
+                    <p className="truncate text-xs font-semibold text-zinc-100">{user?.name || '当前用户'}</p>
+                    <p className="truncate text-[10px] text-zinc-500">{user?.email || '已登录'}</p>
                   </div>
                 </div>
               )}
@@ -325,7 +324,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6 lg:py-6">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-5">
           <Outlet />
         </main>
       </div>

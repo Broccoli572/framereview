@@ -39,8 +39,8 @@ function FolderTreeNode({ folder, selectedFolderId, onSelect, depth = 0 }) {
         className={clsx(
           'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors',
           isActive
-            ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-            : 'text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800'
+            ? 'bg-violet-500/15 text-violet-200'
+            : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100'
         )}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => {
@@ -89,9 +89,9 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
     <button
       type="button"
       onClick={() => onOpen(asset)}
-      className="group flex h-full flex-col overflow-hidden rounded-[24px] border border-surface-200 bg-white text-left transition-all duration-200 hover:-translate-y-1 hover:border-surface-300 hover:shadow-xl dark:border-surface-800 dark:bg-surface-900 dark:hover:border-surface-700"
+      className="studio-card group flex h-full flex-col overflow-hidden rounded-2xl text-left"
     >
-      <div className="relative aspect-video overflow-hidden bg-surface-100 dark:bg-surface-950">
+      <div className="studio-thumb relative aspect-video overflow-hidden">
         {asset.thumbnailUrl ? (
           <img
             src={asset.thumbnailUrl}
@@ -131,21 +131,21 @@ function AssetCard({ asset, onOpen, onRetry, onDelete }) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col px-4 py-4">
+      <div className="flex flex-1 flex-col px-3.5 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{asset.name}</p>
-            <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
+            <p className="truncate text-sm font-semibold text-zinc-100">{asset.name}</p>
+            <p className="mt-1 text-[11px] text-zinc-500">
               {asset.sizeLabel}
               {asset.folderName ? ` · ${asset.folderName}` : ''}
             </p>
           </div>
-          <span className="rounded-full bg-surface-100 px-2.5 py-1 text-[11px] font-medium text-surface-500 dark:bg-surface-800 dark:text-surface-300">
+          <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold text-zinc-500">
             {asset.updatedLabel}
           </span>
         </div>
 
-        <p className="mt-3 text-xs text-surface-500 dark:text-surface-400">{asset.statusDescription}</p>
+        <p className="mt-2 text-[11px] text-zinc-500">{asset.statusDescription}</p>
 
         <div className="mt-auto flex translate-y-0 items-center gap-2 pt-4 opacity-100 transition-all duration-200 md:translate-y-1 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
           <Button
@@ -327,26 +327,26 @@ export default function ProjectPage() {
   }, [hasProcessingAssets, projectId, queryClient]);
 
   return (
-    <div className="grid min-h-[calc(100vh-10rem)] gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="order-2 rounded-[26px] border border-surface-200 bg-white p-4 shadow-sm dark:border-surface-800 dark:bg-surface-900 xl:order-1 xl:sticky xl:top-24 xl:h-fit">
+    <div className="grid min-h-[calc(100vh-7rem)] gap-4 xl:grid-cols-[232px_minmax(0,1fr)]">
+      <aside className="studio-panel order-2 rounded-2xl p-3 xl:order-1 xl:sticky xl:top-20 xl:h-fit">
         {projectQuery.isLoading || folderTreeQuery.isLoading ? (
           <ProjectSidebarSkeleton />
         ) : (
           <>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">目录</p>
-                <h3 className="mt-1 text-base font-semibold">文件夹</h3>
+                <p className="studio-label">目录</p>
+                <h3 className="mt-1 text-sm font-semibold text-zinc-100">文件夹</h3>
               </div>
               <Button size="sm" variant="secondary" leftIcon={FolderPlus} onClick={() => setShowCreateFolder(true)}>
                 新建
               </Button>
             </div>
 
-            <div className="mt-4 rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm font-medium">{projectQuery.data?.name || '项目'}</p>
+            <div className="studio-panel-soft mt-4 rounded-xl p-3">
+              <p className="text-sm font-semibold text-zinc-100">{projectQuery.data?.name || '项目'}</p>
               {projectQuery.data?.description ? (
-                <p className="mt-2 text-xs text-surface-500 dark:text-surface-400">{projectQuery.data.description}</p>
+                <p className="mt-2 text-xs text-zinc-500">{projectQuery.data.description}</p>
               ) : null}
             </div>
 
@@ -356,8 +356,8 @@ export default function ProjectPage() {
                 className={clsx(
                   'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors',
                   !selectedFolderId
-                    ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-                    : 'text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800'
+                    ? 'bg-violet-500/15 text-violet-200'
+                    : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100'
                 )}
                 onClick={() => setSelectedFolderId(null)}
               >
@@ -388,13 +388,13 @@ export default function ProjectPage() {
         )}
       </aside>
 
-      <section className="order-1 space-y-6 xl:order-2">
-        <div className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+      <section className="order-1 space-y-4 xl:order-2">
+        <div className="studio-panel rounded-2xl p-4">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <p className="text-sm font-medium text-surface-500 dark:text-surface-400">项目</p>
-                <h2 className="mt-2 text-2xl font-semibold">{projectQuery.data?.name || '项目'}</h2>
+                <p className="studio-label">Project</p>
+                <h2 className="mt-2 text-2xl font-semibold text-zinc-50">{projectQuery.data?.name || '项目'}</h2>
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button leftIcon={Upload} onClick={() => navigate(`/project/${projectId}/upload`)}>
@@ -403,32 +403,32 @@ export default function ProjectPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">全部</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="studio-stat rounded-xl p-3">
+                <p className="text-xs text-zinc-500">全部</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.total}</p>
               </div>
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">可审阅</p>
+              <div className="studio-stat rounded-xl p-3">
+                <p className="text-xs text-zinc-500">可审阅</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.ready || 0}</p>
               </div>
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">处理中</p>
+              <div className="studio-stat rounded-xl p-3">
+                <p className="text-xs text-zinc-500">处理中</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.processing || 0}</p>
               </div>
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">上传中</p>
+              <div className="studio-stat rounded-xl p-3">
+                <p className="text-xs text-zinc-500">上传中</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.uploading || 0}</p>
               </div>
-              <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-                <p className="text-sm text-surface-500 dark:text-surface-400">失败</p>
+              <div className="studio-stat rounded-xl p-3">
+                <p className="text-xs text-zinc-500">失败</p>
                 <p className="mt-2 text-2xl font-semibold">{counts.failed || 0}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+        <div className="studio-panel rounded-2xl p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.2fr)_repeat(3,minmax(0,180px))]">
               <Input
@@ -440,7 +440,7 @@ export default function ProjectPage() {
               <select
                 value={mediaType}
                 onChange={(event) => setMediaType(event.target.value)}
-                className="rounded-xl border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                className="studio-input rounded-xl px-3 py-2 text-sm"
               >
                 <option value="all">全部类型</option>
                 <option value="video">视频</option>
@@ -450,7 +450,7 @@ export default function ProjectPage() {
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-xl border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                className="studio-input rounded-xl px-3 py-2 text-sm"
               >
                 <option value="all">全部状态</option>
                 <option value="processing">处理中</option>
@@ -461,7 +461,7 @@ export default function ProjectPage() {
               <select
                 value={sortValue}
                 onChange={(event) => setSortValue(event.target.value)}
-                className="rounded-xl border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                className="studio-input rounded-xl px-3 py-2 text-sm"
               >
                 <option value="updated_at-desc">最近更新</option>
                 <option value="updated_at-asc">最早更新</option>
@@ -471,14 +471,14 @@ export default function ProjectPage() {
               </select>
             </div>
 
-            <div className="inline-flex rounded-xl border border-surface-200 p-1 dark:border-surface-800">
+            <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
               <button
                 type="button"
                 className={clsx(
                   'rounded-lg p-2 transition-colors',
                   viewMode === 'grid'
-                    ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-                    : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'
+                    ? 'bg-violet-600 text-white'
+                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100'
                 )}
                 onClick={() => setViewMode('grid')}
                 aria-label="网格视图"
@@ -490,8 +490,8 @@ export default function ProjectPage() {
                 className={clsx(
                   'rounded-lg p-2 transition-colors',
                   viewMode === 'list'
-                    ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-                    : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'
+                    ? 'bg-violet-600 text-white'
+                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100'
                 )}
                 onClick={() => setViewMode('list')}
                 aria-label="列表视图"
@@ -510,8 +510,8 @@ export default function ProjectPage() {
                 className={clsx(
                   'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors',
                   statusFilter === chip.key
-                    ? 'bg-surface-900 text-white dark:bg-surface-100 dark:text-surface-900'
-                    : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700'
+                    ? 'bg-violet-500/20 text-violet-100 ring-1 ring-violet-400/30'
+                    : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-100'
                 )}
               >
                 <span>{chip.label}</span>
