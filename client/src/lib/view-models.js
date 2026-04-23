@@ -1,4 +1,4 @@
-import { formatBytes, formatDuration, formatRelativeTime, getMediaType } from './utils';
+import { formatBytes, formatDuration, formatRelativeTime, getMediaType, repairMojibakeText } from './utils';
 
 const ASSET_STATUS_META = {
   queued: {
@@ -135,7 +135,14 @@ export function normalizeAsset(asset) {
   const duration = Number(asset?.durationSeconds ?? asset?.duration ?? 0) || 0;
   const sizeBytes = Number(asset?.sizeBytes ?? asset?.size_bytes ?? asset?.size ?? 0) || 0;
   const updatedAt = asset?.updatedAt || asset?.updated_at || asset?.createdAt || asset?.created_at || null;
-  const mediaType = getMediaType(asset?.mimeType || asset?.mime_type || asset?.type, asset?.name);
+  const rawName = asset?.name || asset?.originalName || asset?.original_name || '未命名素材';
+  const displayName = repairMojibakeText(rawName);
+  const rawOriginalName = asset?.originalName || asset?.original_name || null;
+  const previewMetadata = asset?.previewMetadata || asset?.preview_metadata || asset?.preview?.metadata || null;
+  const metadata = asset?.metadata || previewMetadata || {};
+  const width = Number(metadata?.width || metadata?.video?.width || metadata?.streams?.video?.width || 0) || 0;
+  const height = Number(metadata?.height || metadata?.video?.height || metadata?.streams?.video?.height || 0) || 0;
+  const mediaType = getMediaType(asset?.mimeType || asset?.mime_type || asset?.type, displayName);
 
   return {
     raw: asset,
@@ -155,6 +162,7 @@ export function normalizeAsset(asset) {
     updatedLabel: updatedAt ? formatRelativeTime(updatedAt) : '刚刚',
     createdAt: asset?.createdAt || asset?.created_at || null,
     thumbnailUrl: getAssetPreviewUrl(asset),
+    previewUrl: asset?.previewUrl || asset?.preview_url || asset?.preview?.proxyUrl || asset?.preview?.hlsUrl || null,
     reviewPath: asset?.id ? `/review/${asset.id}` : null,
     folderId: asset?.folderId || asset?.folder_id || asset?.folder?.id || null,
     folderName: asset?.folder?.name || null,
@@ -163,6 +171,12 @@ export function normalizeAsset(asset) {
     projectName: asset?.project?.name || null,
     workspaceId: asset?.workspaceId || asset?.workspace_id || asset?.workspace?.id || null,
     workspaceName: asset?.workspace?.name || null,
+    name: displayName,
+    originalName: rawOriginalName ? repairMojibakeText(rawOriginalName) : null,
+    updatedLabel: updatedAt ? formatRelativeTime(updatedAt) : '刚刚',
+    width,
+    height,
+    aspectRatio: width > 0 && height > 0 ? `${width} / ${height}` : '16 / 9',
     canRetry: canRetryAsset(asset),
     isProcessing: isProcessingAsset(asset),
   };

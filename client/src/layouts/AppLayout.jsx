@@ -266,7 +266,7 @@ export default function AppLayout() {
               />
             </div>
 
-            {pageContext.primaryAction ? (
+            {pageContext.primaryAction && pageContext.primaryAction.href !== location.pathname ? (
               <Button
                 variant="secondary"
                 size="sm"

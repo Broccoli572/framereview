@@ -121,6 +121,30 @@ export function getMediaType(mimeType, fileName) {
   return 'other';
 }
 
+function countCjk(text) {
+  return (String(text || '').match(/[\u4e00-\u9fff]/g) || []).length;
+}
+
+export function repairMojibakeText(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  if (typeof TextDecoder === 'undefined') return text;
+
+  const suspicious = /[ÃÂÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßãäåæçèé�]/.test(text);
+  if (!suspicious) return text;
+
+  try {
+    const bytes = Uint8Array.from(Array.from(text), (char) => char.charCodeAt(0) & 0xff);
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    if (decoded && !decoded.includes('�') && countCjk(decoded) > countCjk(text)) {
+      return decoded;
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
+}
+
 export function debounce(fn, delay) {
   let timer;
   return (...args) => {

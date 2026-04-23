@@ -16,6 +16,21 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 const TEMP_DIR = path.join(UPLOAD_DIR, 'temp');
 const ASSETS_DIR = path.join(UPLOAD_DIR, 'assets');
 
+function countCjk(text) {
+  return (String(text || '').match(/[\u4e00-\u9fff]/g) || []).length;
+}
+
+function repairMojibakeText(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  const suspicious = /[ÃÂÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßãäåæçèé�]/.test(text);
+  if (!suspicious) return text;
+
+  const decoded = Buffer.from(text, 'latin1').toString('utf8');
+  return decoded && !decoded.includes('�') && countCjk(decoded) > countCjk(text)
+    ? decoded
+    : text;
+}
+
 // 确保目录存在
 [TEMP_DIR, ASSETS_DIR].forEach(dir => {
   fs.mkdirSync(dir, { recursive: true });
@@ -25,7 +40,8 @@ const ASSETS_DIR = path.join(UPLOAD_DIR, 'assets');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, TEMP_DIR),
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname)}`;
+    const originalName = repairMojibakeText(file.originalname);
+    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(originalName)}`;
     cb(null, uniqueName);
   },
 });
@@ -137,17 +153,26 @@ async function attachThumbnailUrls(assets) {
     select: {
       assetVersionId: true,
       posterUrl: true,
+      metadata: true,
+      proxyUrl: true,
+      hlsUrl: true,
     },
   });
 
   const previewByVersionId = new Map(
-    previews.map((preview) => [preview.assetVersionId, preview.posterUrl || null])
+    previews.map((preview) => [preview.assetVersionId, preview])
   );
 
   return assets.map((asset) => ({
     ...asset,
     thumbnailUrl: asset.currentVersionId
-      ? (previewByVersionId.get(asset.currentVersionId) || null)
+      ? (previewByVersionId.get(asset.currentVersionId)?.posterUrl || null)
+      : null,
+    previewMetadata: asset.currentVersionId
+      ? (previewByVersionId.get(asset.currentVersionId)?.metadata || null)
+      : null,
+    previewUrl: asset.currentVersionId
+      ? (previewByVersionId.get(asset.currentVersionId)?.proxyUrl || previewByVersionId.get(asset.currentVersionId)?.hlsUrl || null)
       : null,
   }));
 }
@@ -198,6 +223,7 @@ const updateAssetSchema = z.object({
 router.post('/upload/initiate', authenticate, async (req, res, next) => {
   try {
     const data = initiateSchema.parse(req.body);
+    const originalFileName = repairMojibakeText(data.file_name);
 
     // 验证项目访问权限
     const project = await prisma.project.findFirst({
@@ -216,8 +242,8 @@ router.post('/upload/initiate', authenticate, async (req, res, next) => {
       data: {
         projectId: data.project_id,
         folderId: data.folder_id || null,
-        name: data.file_name,
-        originalName: data.file_name,
+        name: originalFileName,
+        originalName: originalFileName,
         mimeType: data.content_type,
         sizeBytes: BigInt(data.file_size),
         type: getAssetType(data.content_type),
@@ -306,7 +332,7 @@ router.post('/upload/:uploadId/finalize', authenticate, async (req, res, next) =
         status: 'processing',
         storagePath: finalPath,
         sha256,
-        name: data.name || asset.name,
+        name: data.name ? repairMojibakeText(data.name) : asset.name,
         ...(data.folder_id !== undefined && { folderId: data.folder_id }),
       },
       include: {
@@ -384,7 +410,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     const assetDir = path.join(ASSETS_DIR, assetId);
     fs.mkdirSync(assetDir, { recursive: true });
 
-    const ext = path.extname(req.file.originalname);
+    const originalName = repairMojibakeText(req.file.originalname);
+    const ext = path.extname(originalName);
     const finalPath = path.join(assetDir, `v1${ext}`);
     fs.renameSync(req.file.path, finalPath);
 
@@ -395,8 +422,8 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
         id: assetId,
         projectId: project_id,
         folderId: folder_id || null,
-        name: name || req.file.originalname,
-        originalName: req.file.originalname,
+        name: repairMojibakeText(name) || originalName,
+        originalName,
         mimeType: req.file.mimetype,
         sizeBytes: BigInt(req.file.size),
         sha256,
