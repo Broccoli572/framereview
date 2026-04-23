@@ -10,7 +10,7 @@ function normalizeUploadUrl(uploadUrl) {
   return uploadUrl?.replace(/^\/api/, '') || uploadUrl;
 }
 
-export function initiateUpload({ project_id, folder_id, file_name, file_size, content_type, parent_asset_id }) {
+export function initiateUpload({ project_id, folder_id, file_name, file_size, content_type, parent_asset_id, metadata }) {
   return client.post('/assets/upload/initiate', {
     project_id,
     folder_id: folder_id || null,
@@ -18,6 +18,7 @@ export function initiateUpload({ project_id, folder_id, file_name, file_size, co
     file_size,
     content_type,
     parent_asset_id: parent_asset_id || null,
+    metadata: metadata || undefined,
   });
 }
 
@@ -36,10 +37,13 @@ export function uploadChunk(uploadUrl, chunk, onProgress) {
   });
 }
 
-export function uploadAsset({ file, project_id, folder_id, onProgress }) {
+export function uploadAsset({ file, project_id, folder_id, metadata, onProgress }) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('project_id', project_id);
+  if (metadata) {
+    formData.append('metadata', JSON.stringify(metadata));
+  }
   if (folder_id) {
     formData.append('folder_id', folder_id);
   }

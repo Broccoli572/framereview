@@ -31,6 +31,19 @@ function repairMojibakeText(text) {
     : text;
 }
 
+function parseUploadMetadata(value) {
+  if (!value) return undefined;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return undefined;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // 确保目录存在
 [TEMP_DIR, ASSETS_DIR].forEach(dir => {
   fs.mkdirSync(dir, { recursive: true });
@@ -199,6 +212,7 @@ const initiateSchema = z.object({
   file_size: z.number().positive(),
   content_type: z.string().min(1),
   parent_asset_id: z.string().uuid().nullable().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
 const finalizeSchema = z.object({
@@ -248,6 +262,7 @@ router.post('/upload/initiate', authenticate, async (req, res, next) => {
         sizeBytes: BigInt(data.file_size),
         type: getAssetType(data.content_type),
         status: 'uploading',
+        metadata: data.metadata || undefined,
         createdBy: req.userId,
       },
     });
@@ -393,6 +408,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
     const { project_id, folder_id, name, description, tags } = req.body;
+    const metadata = parseUploadMetadata(req.body.metadata);
 
     // 验证项目访问权限
     const project = await prisma.project.findFirst({
@@ -430,6 +446,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res, nex
         type: getAssetType(req.file.mimetype),
         status: 'processing',
         storagePath: finalPath,
+        metadata,
         createdBy: req.userId,
       },
     });

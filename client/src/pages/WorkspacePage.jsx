@@ -18,6 +18,43 @@ import { formatBytes, formatRelativeTime } from '../lib/utils';
 const CHUNK_UPLOAD_THRESHOLD = 20 * 1024 * 1024;
 const CHUNK_SIZE = 8 * 1024 * 1024;
 
+function readVideoMetadata(file) {
+  return new Promise((resolve) => {
+    if (!file?.type?.startsWith('video/')) {
+      resolve(null);
+      return;
+    }
+
+    const video = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+    const cleanup = () => {
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const metadata = {
+        width: video.videoWidth || null,
+        height: video.videoHeight || null,
+        duration: Number.isFinite(video.duration) ? video.duration : null,
+        video: {
+          width: video.videoWidth || null,
+          height: video.videoHeight || null,
+        },
+      };
+      cleanup();
+      resolve(metadata);
+    };
+    video.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    video.src = objectUrl;
+  });
+}
+
 function resolveMediaUrl(asset, detail) {
   const currentVersion = detail?.versions?.find((version) => version.id === detail?.currentVersionId)
     || detail?.versions?.[0]
@@ -138,9 +175,16 @@ function FloatingPreview({ asset, detail, loading, onClose, onOpenReview }) {
   const mediaUrl = resolveMediaUrl(asset, detail);
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-5xl rounded-[24px] border border-white/10 bg-zinc-950/92 p-3 text-white shadow-2xl shadow-black/30 backdrop-blur-xl md:inset-x-auto md:right-5 md:w-[min(760px,calc(100vw-14rem))]">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1.35fr)_240px]">
-        <div className="overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: asset.aspectRatio }}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-6xl rounded-[28px] border border-white/10 bg-zinc-950/94 p-3 text-white shadow-2xl shadow-black/40"
+        onClick={(event) => event.stopPropagation()}
+      >
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="max-h-[72vh] overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: asset.aspectRatio }}>
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="animate-spin" size={28} />
@@ -190,6 +234,7 @@ function FloatingPreview({ asset, detail, loading, onClose, onOpenReview }) {
             </Button>
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );
@@ -279,10 +324,13 @@ export default function WorkspacePage() {
         };
 
         try {
+          const metadata = await readVideoMetadata(file);
+
           if (file.size < CHUNK_UPLOAD_THRESHOLD) {
             await uploadAsset({
               file,
               project_id: target.id,
+              metadata,
               onProgress: (progress) => updateItem({ progress: Math.max(1, Math.min(progress, 99)) }),
             });
           } else {
@@ -291,6 +339,7 @@ export default function WorkspacePage() {
               file_name: file.name,
               file_size: file.size,
               content_type: file.type || 'application/octet-stream',
+              metadata,
             });
             const uploadId = initiateResponse.data?.uploadId;
             const uploadUrl = initiateResponse.data?.uploadUrl;

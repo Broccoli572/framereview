@@ -142,6 +142,7 @@ export function normalizeAsset(asset) {
   const metadata = asset?.metadata || previewMetadata || {};
   const width = Number(metadata?.width || metadata?.video?.width || metadata?.streams?.video?.width || 0) || 0;
   const height = Number(metadata?.height || metadata?.video?.height || metadata?.streams?.video?.height || 0) || 0;
+  const displayDuration = duration || Number(metadata?.duration || 0) || 0;
   const mediaType = getMediaType(asset?.mimeType || asset?.mime_type || asset?.type, displayName);
 
   return {
@@ -176,6 +177,8 @@ export function normalizeAsset(asset) {
     updatedLabel: updatedAt ? formatRelativeTime(updatedAt) : '刚刚',
     width,
     height,
+    duration: displayDuration,
+    durationLabel: displayDuration ? formatDuration(displayDuration) : '--',
     aspectRatio: width > 0 && height > 0 ? `${width} / ${height}` : '16 / 9',
     canRetry: canRetryAsset(asset),
     isProcessing: isProcessingAsset(asset),
