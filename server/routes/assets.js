@@ -176,6 +176,22 @@ async function attachThumbnailUrls(assets) {
     previews.map((preview) => [preview.assetVersionId, preview])
   );
 
+  const versions = await prisma.assetVersion.findMany({
+    where: {
+      id: {
+        in: currentVersionIds,
+      },
+    },
+    select: {
+      id: true,
+      filePath: true,
+    },
+  });
+
+  const versionById = new Map(
+    versions.map((version) => [version.id, version])
+  );
+
   return assets.map((asset) => ({
     ...asset,
     thumbnailUrl: asset.currentVersionId
@@ -185,7 +201,15 @@ async function attachThumbnailUrls(assets) {
       ? (previewByVersionId.get(asset.currentVersionId)?.metadata || null)
       : null,
     previewUrl: asset.currentVersionId
-      ? (previewByVersionId.get(asset.currentVersionId)?.proxyUrl || previewByVersionId.get(asset.currentVersionId)?.hlsUrl || null)
+      ? (
+          previewByVersionId.get(asset.currentVersionId)?.proxyUrl
+          || previewByVersionId.get(asset.currentVersionId)?.hlsUrl
+          || getPublicUploadUrl(versionById.get(asset.currentVersionId)?.filePath)
+          || null
+        )
+      : null,
+    fileUrl: asset.currentVersionId
+      ? (getPublicUploadUrl(versionById.get(asset.currentVersionId)?.filePath) || null)
       : null,
   }));
 }

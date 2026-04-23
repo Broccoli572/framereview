@@ -71,6 +71,11 @@ function resolveMediaUrl(asset, detail) {
   );
 }
 
+function getVideoFrameUrl(url) {
+  if (!url) return null;
+  return url.includes('#') ? url : `${url}#t=0.1`;
+}
+
 function WorkspaceSkeleton() {
   return (
     <div className="space-y-4">
@@ -84,19 +89,35 @@ function WorkspaceSkeleton() {
   );
 }
 
-function VideoCard({ asset, onPreview }) {
+function VideoCard({ asset, aspectRatio, onAspectRatio, onPreview }) {
+  const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
+
   return (
     <button
       type="button"
       className="studio-card group overflow-hidden rounded-2xl text-left"
       onClick={() => onPreview(asset)}
     >
-      <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio: asset.aspectRatio }}>
+      <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
         {asset.thumbnailUrl ? (
           <img
             src={asset.thumbnailUrl}
             alt={asset.name}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : videoCoverUrl ? (
+          <video
+            src={videoCoverUrl}
+            muted
+            playsInline
+            preload="metadata"
+            className="pointer-events-none h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            onLoadedMetadata={(event) => {
+              const video = event.currentTarget;
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                onAspectRatio(asset.id, `${video.videoWidth} / ${video.videoHeight}`);
+              }
+            }}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -169,28 +190,36 @@ function UploadQueue({ items }) {
   );
 }
 
-function FloatingPreview({ asset, detail, loading, onClose, onOpenReview }) {
+function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, onClose, onOpenReview }) {
   if (!asset) return null;
 
   const mediaUrl = resolveMediaUrl(asset, detail);
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4 backdrop-blur-md"
-      onClick={onClose}
-    >
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4">
       <div
-        className="w-full max-w-6xl rounded-[28px] border border-white/10 bg-zinc-950/94 p-3 text-white shadow-2xl shadow-black/40"
+        className="pointer-events-auto w-full max-w-6xl rounded-[28px] border border-surface-200 bg-white p-3 text-surface-950 shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-zinc-950 dark:text-white"
         onClick={(event) => event.stopPropagation()}
       >
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="max-h-[72vh] overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: asset.aspectRatio }}>
+        <div className="max-h-[72vh] overflow-hidden rounded-2xl bg-black" style={{ aspectRatio }}>
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="animate-spin" size={28} />
             </div>
           ) : mediaUrl ? (
-            <video src={mediaUrl} controls playsInline className="h-full w-full object-contain" />
+            <video
+              src={mediaUrl}
+              controls
+              playsInline
+              className="h-full w-full object-contain"
+              onLoadedMetadata={(event) => {
+                const video = event.currentTarget;
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                  onAspectRatio(asset.id, `${video.videoWidth} / ${video.videoHeight}`);
+                }
+              }}
+            />
           ) : asset.thumbnailUrl ? (
             <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-contain" />
           ) : (
@@ -200,27 +229,27 @@ function FloatingPreview({ asset, detail, loading, onClose, onOpenReview }) {
           )}
         </div>
 
-        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl bg-white/[0.06] p-4">
+        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl bg-surface-50 p-4 dark:bg-white/[0.06]">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
               <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
-              <button type="button" className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white" onClick={onClose}>
+              <button type="button" className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white" onClick={onClose}>
                 <X size={16} />
               </button>
             </div>
             <h3 className="mt-3 line-clamp-2 text-base font-semibold">{asset.name}</h3>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-300">
-              <div className="rounded-xl bg-black/20 p-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-surface-500 dark:text-zinc-300">
+              <div className="rounded-xl bg-white p-2 dark:bg-black/20">
                 <p className="text-zinc-500">时长</p>
-                <p className="mt-1 font-medium text-white">{asset.durationLabel}</p>
+                <p className="mt-1 font-medium text-surface-950 dark:text-white">{asset.durationLabel}</p>
               </div>
-              <div className="rounded-xl bg-black/20 p-2">
+              <div className="rounded-xl bg-white p-2 dark:bg-black/20">
                 <p className="text-zinc-500">体积</p>
-                <p className="mt-1 font-medium text-white">{asset.sizeLabel}</p>
+                <p className="mt-1 font-medium text-surface-950 dark:text-white">{asset.sizeLabel}</p>
               </div>
-              <div className="col-span-2 rounded-xl bg-black/20 p-2">
+              <div className="col-span-2 rounded-xl bg-white p-2 dark:bg-black/20">
                 <p className="text-zinc-500">更新</p>
-                <p className="mt-1 font-medium text-white">{asset.updatedLabel}</p>
+                <p className="mt-1 font-medium text-surface-950 dark:text-white">{asset.updatedLabel}</p>
               </div>
             </div>
           </div>
@@ -251,6 +280,7 @@ export default function WorkspacePage() {
   const [uploadItems, setUploadItems] = useState([]);
   const [previewAssetId, setPreviewAssetId] = useState(null);
   const [fallbackUploadTarget, setFallbackUploadTarget] = useState(null);
+  const [assetAspectRatios, setAssetAspectRatios] = useState({});
 
   const workspaceQuery = useQuery({
     queryKey: ['workspace', workspaceId],
@@ -493,7 +523,17 @@ export default function WorkspacePage() {
         ) : (
           <div className="grid auto-rows-auto gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
             {assets.map((asset) => (
-              <VideoCard key={asset.id} asset={asset} onPreview={(item) => setPreviewAssetId(item.id)} />
+              <VideoCard
+                key={asset.id}
+                asset={asset}
+                aspectRatio={assetAspectRatios[asset.id] || asset.aspectRatio}
+                onAspectRatio={(assetId, aspectRatio) => {
+                  setAssetAspectRatios((current) => (
+                    current[assetId] === aspectRatio ? current : { ...current, [assetId]: aspectRatio }
+                  ));
+                }}
+                onPreview={(item) => setPreviewAssetId(item.id)}
+              />
             ))}
           </div>
         )}
@@ -501,8 +541,14 @@ export default function WorkspacePage() {
 
       <FloatingPreview
         asset={previewAsset}
+        aspectRatio={previewAsset ? (assetAspectRatios[previewAsset.id] || previewAsset.aspectRatio) : '16 / 9'}
         detail={previewQuery.data}
         loading={previewQuery.isLoading}
+        onAspectRatio={(assetId, aspectRatio) => {
+          setAssetAspectRatios((current) => (
+            current[assetId] === aspectRatio ? current : { ...current, [assetId]: aspectRatio }
+          ));
+        }}
         onClose={() => setPreviewAssetId(null)}
         onOpenReview={(asset) => navigate(`/review/${asset.id}`)}
       />

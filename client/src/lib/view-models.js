@@ -163,7 +163,7 @@ export function normalizeAsset(asset) {
     updatedLabel: updatedAt ? formatRelativeTime(updatedAt) : '刚刚',
     createdAt: asset?.createdAt || asset?.created_at || null,
     thumbnailUrl: getAssetPreviewUrl(asset),
-    previewUrl: asset?.previewUrl || asset?.preview_url || asset?.preview?.proxyUrl || asset?.preview?.hlsUrl || null,
+    previewUrl: asset?.previewUrl || asset?.preview_url || asset?.fileUrl || asset?.file_url || asset?.preview?.proxyUrl || asset?.preview?.hlsUrl || null,
     reviewPath: asset?.id ? `/review/${asset.id}` : null,
     folderId: asset?.folderId || asset?.folder_id || asset?.folder?.id || null,
     folderName: asset?.folder?.name || null,
