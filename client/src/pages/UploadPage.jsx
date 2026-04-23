@@ -278,7 +278,7 @@ export default function UploadPage() {
         <p className="text-sm font-medium text-surface-500 dark:text-surface-400">上传</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight">{projectQuery.data?.name || '上传素材'}</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-surface-500 dark:text-surface-400">
-          上传完成后，素材会立即写入当前项目列表。你可以留在这里继续传，也可以随时跳回项目查看刚刚落进去的视频。
+          上传后自动进入当前项目。
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -311,7 +311,7 @@ export default function UploadPage() {
           </div>
           <h3 className="mt-4 text-lg font-semibold">拖拽文件到这里</h3>
           <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
-            支持一次加入多个视频，上传后会在下方显示已成功落库的素材。
+            支持多选视频文件。
           </p>
           <div className="mt-6">
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-surface-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-surface-100 dark:text-surface-900">
@@ -328,7 +328,7 @@ export default function UploadPage() {
               目标目录
             </div>
             <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
-              不选时默认进入项目根目录，后续也可以在项目里再移动或新建文件夹整理。
+              不选择则进入根目录。
             </p>
           </div>
 
@@ -353,7 +353,7 @@ export default function UploadPage() {
             <div>
               <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">已成功上传的素材</h3>
               <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
-                素材已经写入当前项目。现在就能回项目列表查看，不用担心“上传成功但找不到”。
+                已写入项目，可立即查看。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -385,7 +385,7 @@ export default function UploadPage() {
         <EmptyState
           icon={UploadCloud}
           title="还没有加入文件"
-          description="把视频先拖进来，上传成功后下方会直接出现已入库素材。"
+          description="拖入视频或点击选择文件。"
         />
       ) : (
         <section className="space-y-4">
