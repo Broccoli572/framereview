@@ -290,9 +290,9 @@ export default function AppLayout() {
               type="button"
               className="rounded-xl p-2 text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-900 dark:hover:bg-surface-800 dark:hover:text-surface-100"
               onClick={toggleTheme}
-              aria-label={darkMode ? '切换到浅色模式' : '切换到深色模式'}
+              aria-label={darkMode ? '当前深色模式，点击切换到浅色模式' : '当前浅色模式，点击切换到深色模式'}
             >
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              {darkMode ? <Moon size={18} /> : <Sun size={18} />}
             </button>
 
             <button

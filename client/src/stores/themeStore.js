@@ -4,9 +4,7 @@ function resolveInitialDarkMode() {
   if (typeof window === 'undefined') return false;
 
   const storedTheme = localStorage.getItem('theme');
-  if (storedTheme) return storedTheme === 'dark';
-
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  return storedTheme === 'dark';
 }
 
 export const useThemeStore = create((set) => ({
