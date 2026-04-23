@@ -82,6 +82,14 @@ export function deleteAsset(assetId) {
   return client.delete(`/assets/${assetId}`);
 }
 
+export function restoreAsset(assetId) {
+  return client.post(`/assets/${assetId}/restore`);
+}
+
+export function emptyAssetTrash(projectId) {
+  return client.delete(`/projects/${projectId}/assets/trash`);
+}
+
 export function listAssets(projectId, params = {}) {
   const {
     page = 1,
@@ -95,6 +103,18 @@ export function listAssets(projectId, params = {}) {
   } = params;
   return client.get(`/projects/${projectId}/assets`, {
     params: { page, per_page, sort, order, type, folder_id, search, status },
+  });
+}
+
+export function listDeletedAssets(projectId, params = {}) {
+  const {
+    page = 1,
+    per_page = 50,
+    type,
+    search,
+  } = params;
+  return client.get(`/projects/${projectId}/assets/trash`, {
+    params: { page, per_page, type, search },
   });
 }
 

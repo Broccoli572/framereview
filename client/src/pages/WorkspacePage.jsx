@@ -1,10 +1,20 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Film, Loader2, Maximize2, Search, Trash2, UploadCloud, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Film, Loader2, Maximize2, RotateCcw, Search, Trash2, UploadCloud, X } from 'lucide-react';
 import clsx from 'clsx';
 import client from '../api/client';
-import { deleteAsset, finalizeUpload, initiateUpload, listAssets, uploadAsset, uploadChunk } from '../api/assets';
+import {
+  deleteAsset,
+  emptyAssetTrash,
+  finalizeUpload,
+  initiateUpload,
+  listAssets,
+  listDeletedAssets,
+  restoreAsset,
+  uploadAsset,
+  uploadChunk,
+} from '../api/assets';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
@@ -93,7 +103,7 @@ function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPr
   const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
 
   return (
-    <article className="studio-card group relative overflow-hidden rounded-2xl">
+    <article className="studio-card group relative self-start overflow-hidden rounded-2xl">
       <button type="button" className="block w-full text-left" onClick={() => onPreview(asset)}>
         <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
           {asset.thumbnailUrl ? (
@@ -149,6 +159,75 @@ function VideoCard({ asset, aspectRatio, deleting, onAspectRatio, onDelete, onPr
         {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
       </button>
     </article>
+  );
+}
+
+function TrashPanel({ assets, loading, restoringId, clearing, onRestore, onEmpty, onClose }) {
+  return (
+    <section className="studio-panel rounded-2xl p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">回收站</p>
+          <p className="mt-1 text-xs studio-muted">删除的视频会先保留在这里，清空后才会彻底移除数据库记录和文件。</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={onClose}>关闭</Button>
+          <Button size="sm" variant="danger" loading={clearing} disabled={!assets.length} onClick={onEmpty}>
+            清空回收站
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3 divide-y divide-surface-100 dark:divide-white/10">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="py-3">
+              <Skeleton className="h-14 w-full rounded-xl" />
+            </div>
+          ))
+        ) : assets.length === 0 ? (
+          <div className="rounded-xl bg-surface-50 p-4 text-sm studio-muted dark:bg-white/[0.04]">
+            回收站是空的。
+          </div>
+        ) : (
+          assets.map((asset) => {
+            const videoCoverUrl = !asset.thumbnailUrl ? getVideoFrameUrl(asset.previewUrl) : null;
+            const deletedAt = asset.raw?.deletedAt || asset.raw?.deleted_at || asset.updatedAt;
+
+            return (
+              <div key={asset.id} className="flex items-center gap-3 py-3">
+                <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-surface-100 dark:bg-white/10">
+                  {asset.thumbnailUrl ? (
+                    <img src={asset.thumbnailUrl} alt={asset.name} className="h-full w-full object-cover" />
+                  ) : videoCoverUrl ? (
+                    <video src={videoCoverUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Film size={18} className="studio-muted" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{asset.name}</p>
+                  <p className="mt-0.5 text-xs studio-muted">
+                    {asset.sizeLabel} · 删除于 {deletedAt ? formatRelativeTime(deletedAt) : '刚刚'}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={RotateCcw}
+                  loading={restoringId === asset.id}
+                  onClick={() => onRestore(asset)}
+                >
+                  恢复
+                </Button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -289,6 +368,7 @@ export default function WorkspacePage() {
   const [previewAssetId, setPreviewAssetId] = useState(null);
   const [fallbackUploadTarget, setFallbackUploadTarget] = useState(null);
   const [assetAspectRatios, setAssetAspectRatios] = useState({});
+  const [showTrash, setShowTrash] = useState(false);
 
   const workspaceQuery = useQuery({
     queryKey: ['workspace', workspaceId],
@@ -327,6 +407,23 @@ export default function WorkspacePage() {
       const payload = response.data?.data || response.data || [];
       const items = Array.isArray(payload) ? payload : payload.data || [];
       return items.map(normalizeAsset);
+    },
+    enabled: Boolean(uploadTarget?.id),
+  });
+
+  const trashQuery = useQuery({
+    queryKey: ['workspace-video-trash', uploadTarget?.id],
+    queryFn: async () => {
+      const response = await listDeletedAssets(uploadTarget.id, {
+        per_page: 100,
+        type: 'video',
+      });
+      const payload = response.data || {};
+      const items = Array.isArray(payload.data) ? payload.data : [];
+      return {
+        total: Number(payload.total || items.length),
+        items: items.map(normalizeAsset),
+      };
     },
     enabled: Boolean(uploadTarget?.id),
   });
@@ -424,8 +521,29 @@ export default function WorkspacePage() {
     onSuccess: (_, assetId) => {
       if (uploadTarget?.id) {
         queryClient.invalidateQueries({ queryKey: ['workspace-video-assets', uploadTarget.id] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-trash', uploadTarget.id] });
       }
       setPreviewAssetId((current) => (current === assetId ? null : current));
+    },
+  });
+
+  const restoreAssetMutation = useMutation({
+    mutationFn: (assetId) => restoreAsset(assetId),
+    onSuccess: () => {
+      if (uploadTarget?.id) {
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-assets', uploadTarget.id] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-trash', uploadTarget.id] });
+      }
+    },
+  });
+
+  const emptyTrashMutation = useMutation({
+    mutationFn: () => emptyAssetTrash(uploadTarget.id),
+    onSuccess: () => {
+      if (uploadTarget?.id) {
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-assets', uploadTarget.id] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-video-trash', uploadTarget.id] });
+      }
     },
   });
 
@@ -437,13 +555,26 @@ export default function WorkspacePage() {
 
   const handleDeleteAsset = useCallback((asset) => {
     if (!asset?.id || deleteAssetMutation.isPending) return;
-    if (!window.confirm(`确定删除「${asset.name || '这个视频'}」吗？`)) return;
+    if (!window.confirm(`将「${asset.name || '这个视频'}」移入回收站吗？`)) return;
     deleteAssetMutation.mutate(asset.id);
   }, [deleteAssetMutation]);
+
+  const handleRestoreAsset = useCallback((asset) => {
+    if (!asset?.id || restoreAssetMutation.isPending) return;
+    restoreAssetMutation.mutate(asset.id);
+  }, [restoreAssetMutation]);
+
+  const handleEmptyTrash = useCallback(() => {
+    if (!uploadTarget?.id || emptyTrashMutation.isPending) return;
+    if (!window.confirm('清空回收站会彻底删除数据库记录和上传文件，无法恢复。确定继续吗？')) return;
+    emptyTrashMutation.mutate();
+  }, [emptyTrashMutation, uploadTarget?.id]);
 
   const assets = (assetsQuery.data || []).filter((asset) => (
     !searchValue.trim() || asset.name.toLowerCase().includes(searchValue.trim().toLowerCase())
   ));
+  const trashAssets = trashQuery.data?.items || [];
+  const trashCount = trashQuery.data?.total || 0;
 
   const handleDrop = (event) => {
     event.preventDefault();
@@ -504,6 +635,9 @@ export default function WorkspacePage() {
             <Button leftIcon={UploadCloud} onClick={() => fileInputRef.current?.click()} loading={uploadMutation.isPending}>
               上传视频
             </Button>
+            <Button variant="ghost" leftIcon={Trash2} onClick={() => setShowTrash((current) => !current)}>
+              回收站{trashCount ? ` ${trashCount}` : ''}
+            </Button>
           </div>
         </div>
 
@@ -527,6 +661,18 @@ export default function WorkspacePage() {
 
       <UploadQueue items={uploadItems} />
 
+      {showTrash && (
+        <TrashPanel
+          assets={trashAssets}
+          loading={trashQuery.isLoading}
+          restoringId={restoreAssetMutation.variables}
+          clearing={emptyTrashMutation.isPending}
+          onRestore={handleRestoreAsset}
+          onEmpty={handleEmptyTrash}
+          onClose={() => setShowTrash(false)}
+        />
+      )}
+
       <section className="space-y-3">
         {assetsQuery.isLoading ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
@@ -545,7 +691,7 @@ export default function WorkspacePage() {
             />
           </div>
         ) : (
-          <div className="grid auto-rows-auto grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
+          <div className="grid auto-rows-auto grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] items-start gap-3">
             {assets.map((asset) => (
               <VideoCard
                 key={asset.id}

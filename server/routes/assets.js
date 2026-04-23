@@ -140,6 +140,56 @@ function getPublicUploadUrl(filePath) {
   return `/uploads/${relativePath.split(path.sep).join('/')}`;
 }
 
+function isInsideUploadDir(targetPath) {
+  const resolvedUploadRoot = path.resolve(UPLOAD_DIR);
+  const resolvedTarget = path.resolve(targetPath);
+  const relativePath = path.relative(resolvedUploadRoot, resolvedTarget);
+
+  return Boolean(relativePath) && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+}
+
+function removeUploadPath(targetPath) {
+  if (!targetPath) return null;
+
+  const resolvedTarget = path.resolve(targetPath);
+  if (!isInsideUploadDir(resolvedTarget)) {
+    return { path: resolvedTarget, skipped: true, reason: 'outside_upload_dir' };
+  }
+
+  fs.rmSync(resolvedTarget, { recursive: true, force: true });
+  return { path: resolvedTarget, removed: true };
+}
+
+function getAssetUploadDir(assetId) {
+  return path.join(ASSETS_DIR, assetId);
+}
+
+function addUploadTarget(targets, value) {
+  if (!value) return;
+  const targetPath = String(value).startsWith('/uploads/')
+    ? resolvePublicUploadPath(value)
+    : value;
+
+  if (targetPath) targets.add(path.resolve(targetPath));
+}
+
+function collectAssetUploadTargets(asset) {
+  const targets = new Set();
+
+  addUploadTarget(targets, asset.storagePath);
+  for (const version of asset.versions || []) {
+    addUploadTarget(targets, version.filePath);
+    addUploadTarget(targets, version.preview?.posterUrl);
+    addUploadTarget(targets, version.preview?.spriteUrl);
+    addUploadTarget(targets, version.preview?.waveformUrl);
+    addUploadTarget(targets, version.preview?.proxyUrl);
+    addUploadTarget(targets, version.preview?.hlsUrl);
+  }
+  addUploadTarget(targets, getAssetUploadDir(asset.id));
+
+  return Array.from(targets);
+}
+
 function withFileUrl(version) {
   if (!version) return version;
   return {
@@ -214,9 +264,28 @@ async function attachThumbnailUrls(assets) {
   }));
 }
 
-async function requireAssetAccess(assetId, userId) {
-  const asset = await prisma.asset.findUnique({
-    where: { id: assetId, deletedAt: null },
+async function requireProjectAccess(projectId, userId) {
+  if (!projectId) return null;
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, deletedAt: null },
+    include: { workspace: true },
+  });
+  if (!project) return null;
+
+  const member = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
+  });
+
+  return member ? project : null;
+}
+
+async function requireAssetAccess(assetId, userId, options = {}) {
+  const asset = await prisma.asset.findFirst({
+    where: {
+      id: assetId,
+      ...(options.includeDeleted ? {} : { deletedAt: null }),
+    },
     include: { project: { include: { workspace: true } } },
   });
   if (!asset) return null;
@@ -225,6 +294,12 @@ async function requireAssetAccess(assetId, userId) {
     where: { workspaceId_userId: { workspaceId: asset.project.workspaceId, userId } },
   });
   return member ? asset : null;
+}
+
+function getMetadataObject(metadata) {
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? metadata
+    : {};
 }
 
 // ── Validation ────────────────────────────────────────────
@@ -584,6 +659,119 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 // ── GET /api/assets/:id ─────────────────────────────────
+// GET /api/projects/:projectId/assets/trash - list soft-deleted assets
+router.get('/trash', authenticate, async (req, res, next) => {
+  try {
+    const projectId = req.params.projectId || req.query.project_id;
+    const { page = 1, per_page = 50, type, search } = req.query;
+    const project = await requireProjectAccess(projectId, req.userId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    const where = {
+      projectId,
+      deletedAt: { not: null },
+      ...(type && type !== 'all' && type !== 'folder' && { type }),
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { originalName: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    const [assets, total] = await Promise.all([
+      prisma.asset.findMany({
+        where,
+        orderBy: { deletedAt: 'desc' },
+        skip: (Number(page) - 1) * Number(per_page),
+        take: Number(per_page),
+        include: {
+          creator: { select: { id: true, name: true, avatar: true } },
+          folder: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.asset.count({ where }),
+    ]);
+
+    const assetsWithThumbnails = await attachThumbnailUrls(assets);
+    res.json({ data: assetsWithThumbnails, total, page: Number(page), per_page: Number(per_page) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/projects/:projectId/assets/trash - permanently purge recycle bin
+router.delete('/trash', authenticate, async (req, res, next) => {
+  try {
+    const projectId = req.params.projectId || req.query.project_id || req.body?.project_id;
+    const project = await requireProjectAccess(projectId, req.userId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    const assets = await prisma.asset.findMany({
+      where: { projectId, deletedAt: { not: null } },
+      include: {
+        versions: {
+          include: { preview: true },
+        },
+      },
+    });
+
+    if (!assets.length) {
+      return res.json({ purged: 0, fileErrors: [] });
+    }
+
+    const ids = assets.map((asset) => asset.id);
+    const uploadTargets = assets.flatMap(collectAssetUploadTargets);
+
+    const result = await prisma.asset.deleteMany({
+      where: { id: { in: ids }, projectId, deletedAt: { not: null } },
+    });
+
+    const fileErrors = [];
+    for (const target of uploadTargets) {
+      try {
+        const outcome = removeUploadPath(target);
+        if (outcome?.skipped) fileErrors.push(outcome);
+      } catch (error) {
+        fileErrors.push({ path: target, message: error.message });
+      }
+    }
+
+    if (fileErrors.length) {
+      console.warn('[Asset] Some recycle-bin files were not removed:', fileErrors);
+    }
+
+    res.json({ purged: result.count, fileErrors });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/assets/:id/restore - restore from recycle bin
+router.post('/:id/restore', authenticate, async (req, res, next) => {
+  try {
+    const asset = await requireAssetAccess(req.params.id, req.userId, { includeDeleted: true });
+    if (!asset || !asset.deletedAt) return res.status(404).json({ message: 'Deleted asset not found' });
+
+    const metadata = getMetadataObject(asset.metadata);
+    const restoredStatus = metadata.deletedFromStatus && metadata.deletedFromStatus !== 'deleted'
+      ? metadata.deletedFromStatus
+      : (asset.currentVersionId ? 'ready' : 'pending');
+
+    const restored = await prisma.asset.update({
+      where: { id: asset.id },
+      data: {
+        deletedAt: null,
+        status: restoredStatus,
+      },
+    });
+
+    res.json(restored);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const asset = await requireAssetAccess(req.params.id, req.userId);
@@ -649,13 +837,21 @@ router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const asset = await requireAssetAccess(req.params.id, req.userId);
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
+    const metadata = getMetadataObject(asset.metadata);
 
     await prisma.asset.update({
       where: { id: asset.id },
-      data: { deletedAt: new Date(), status: 'deleted' },
+      data: {
+        deletedAt: new Date(),
+        status: 'deleted',
+        metadata: {
+          ...metadata,
+          deletedFromStatus: asset.status,
+        },
+      },
     });
 
-    res.json({ message: 'Asset deleted' });
+    res.json({ message: 'Asset moved to trash' });
   } catch (err) {
     next(err);
   }
