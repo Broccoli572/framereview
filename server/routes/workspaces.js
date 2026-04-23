@@ -61,19 +61,72 @@ const updateMemberRoleSchema = z.object({
   role: z.enum(['owner', 'admin', 'editor', 'member', 'viewer']),
 });
 
+const SYSTEM_UPLOAD_PROJECT_NAMES = new Set([
+  '素材收件箱',
+  '绱犳潗鏀朵欢绠?',
+  '缂佽京濮靛妤呭绩閺堝灚顐界紒?',
+]);
+
+function normalizeProjectName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+function isSystemUploadProject(project) {
+  const normalizedName = normalizeProjectName(project?.name);
+  return normalizedName.includes('收件箱') || normalizedName.includes('uploadinbox') || SYSTEM_UPLOAD_PROJECT_NAMES.has(project?.name);
+}
+
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const memberships = await prisma.workspaceMember.findMany({
-      where: { userId: req.userId },
-      include: {
+      where: {
+        userId: req.userId,
         workspace: {
-          include: {
-            _count: { select: { members: true, projects: true } },
-          },
+          deletedAt: null,
+          isActive: true,
         },
+      },
+      include: {
+        workspace: true,
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const workspaceIds = memberships.map((membership) => membership.workspaceId);
+    const [memberGroups, projectGroups] = await Promise.all([
+      workspaceIds.length
+        ? prisma.workspaceMember.groupBy({
+            by: ['workspaceId'],
+            where: { workspaceId: { in: workspaceIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      workspaceIds.length
+        ? prisma.project.groupBy({
+            by: ['workspaceId'],
+            where: {
+              workspaceId: { in: workspaceIds },
+              deletedAt: null,
+              NOT: {
+                name: {
+                  in: ['素材收件箱', '绱犳潗鏀朵欢绠?', '缂佽京濮靛妤呭绩閺堝灚顐界紒?'],
+                },
+              },
+            },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const memberCountMap = new Map(
+      memberGroups.map((group) => [group.workspaceId, group._count._all])
+    );
+    const projectCountMap = new Map(
+      projectGroups.map((group) => [group.workspaceId, group._count._all])
+    );
 
     const workspaces = memberships.map((membership) => ({
       id: membership.workspace.id,
@@ -82,8 +135,8 @@ router.get('/', authenticate, async (req, res, next) => {
       description: null,
       avatar: membership.workspace.logo,
       role: membership.role,
-      memberCount: membership.workspace._count.members,
-      projectCount: membership.workspace._count.projects,
+      memberCount: memberCountMap.get(membership.workspace.id) || 0,
+      projectCount: projectCountMap.get(membership.workspace.id) || 0,
       createdAt: membership.workspace.createdAt,
       updatedAt: membership.workspace.updatedAt,
     }));
@@ -134,19 +187,41 @@ router.get('/:id', authenticate, async (req, res, next) => {
     const member = await requireWorkspaceMember(req.params.id, req.userId);
     if (!member) return unauthorized(res, '无权限访问工作区');
 
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: req.params.id },
-      include: {
-        members: {
-          include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+    const [workspace, activeProjectCount] = await Promise.all([
+      prisma.workspace.findUnique({
+        where: { id: req.params.id },
+        include: {
+          members: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+          },
+          _count: { select: { members: true } },
         },
-        _count: { select: { projects: true, members: true } },
-      },
-    });
+      }),
+      prisma.project.count({
+        where: {
+          workspaceId: req.params.id,
+          deletedAt: null,
+          NOT: {
+            name: {
+              in: ['素材收件箱', '绱犳潗鏀朵欢绠?', '缂佽京濮靛妤呭绩閺堝灚顐界紒?'],
+            },
+          },
+        },
+      }),
+    ]);
 
     if (!workspace) return notFound(res, '工作区不存在');
 
-    return ok(res, { data: { ...workspace, description: null } });
+    return ok(res, {
+      data: {
+        ...workspace,
+        _count: {
+          ...workspace._count,
+          projects: activeProjectCount,
+        },
+        description: null,
+      },
+    });
   } catch (err) {
     next(err);
   }
