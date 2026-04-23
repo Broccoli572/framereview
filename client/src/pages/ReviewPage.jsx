@@ -354,22 +354,22 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-5">
-        <div className="rounded-[26px] border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-800 dark:bg-surface-900">
+    <div className="grid min-h-[calc(100vh-7rem)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <section className="space-y-4">
+        <div className="studio-panel rounded-2xl p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 text-sm text-surface-500 transition-colors hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
+                className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500 transition-colors hover:text-zinc-100"
                 onClick={() => navigate(assetViewModel?.projectId ? `/project/${assetViewModel.projectId}` : -1)}
               >
                 <ArrowLeft size={16} />
                 返回项目
               </button>
-              <p className="mt-3 text-sm font-medium text-surface-500 dark:text-surface-400">审阅</p>
-              <h2 className="mt-2 truncate text-2xl font-semibold">{assetViewModel?.name || '素材审阅'}</h2>
-              <p className="mt-2 text-sm text-surface-500 dark:text-surface-400">
+              <p className="studio-label mt-3">Review</p>
+              <h2 className="mt-2 truncate text-2xl font-semibold text-zinc-50">{assetViewModel?.name || '素材审阅'}</h2>
+              <p className="mt-2 text-xs text-zinc-500">
                 {projectQuery.data?.workspaceName ? `${projectQuery.data.workspaceName} / ` : null}
                 {projectQuery.data?.name || '当前项目'} · {assetViewModel?.sizeLabel || '--'} · {assetViewModel?.durationLabel || '--'}
               </p>
@@ -382,7 +382,7 @@ export default function ReviewPage() {
                 <select
                   value={selectedVersionId}
                   onChange={(event) => setSelectedVersionId(event.target.value)}
-                  className="rounded-xl border border-surface-300 bg-white px-3 py-2 text-sm dark:border-surface-700 dark:bg-surface-900 dark:text-surface-100"
+                  className="studio-input rounded-xl px-3 py-2 text-sm"
                 >
                   {versions.map((version) => (
                     <option key={version.id} value={version.id}>
@@ -395,13 +395,13 @@ export default function ReviewPage() {
           </div>
 
           {assetViewModel?.status === 'processing' ? (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-200">
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
               正在处理，页面会自动刷新。
             </div>
           ) : null}
 
           {assetViewModel?.status === 'failed' ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-200">
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               <span>处理失败。</span>
               <Button size="sm" variant="secondary" leftIcon={RefreshCw} onClick={() => retryProcessingMutation.mutate()}>
                 重新处理
@@ -430,39 +430,39 @@ export default function ReviewPage() {
             </Button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">版本</p>
+          <div className="mt-5 grid gap-2 md:grid-cols-3">
+            <div className="studio-stat rounded-xl p-3">
+              <p className="text-xs text-zinc-500">版本</p>
               <p className="mt-2 text-xl font-semibold">
                 {selectedVersion?.versionNumber ? `v${selectedVersion.versionNumber}` : '--'}
               </p>
             </div>
-            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">待处理</p>
+            <div className="studio-stat rounded-xl p-3">
+              <p className="text-xs text-zinc-500">待处理</p>
               <p className="mt-2 text-xl font-semibold">{unresolvedCount}</p>
             </div>
-            <div className="rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-              <p className="text-sm text-surface-500 dark:text-surface-400">已解决</p>
+            <div className="studio-stat rounded-xl p-3">
+              <p className="text-xs text-zinc-500">已解决</p>
               <p className="mt-2 text-xl font-semibold">{resolvedCount}</p>
             </div>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[26px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
-          <div className="relative flex min-h-[320px] items-center justify-center bg-surface-950 md:min-h-[420px]">
+        <div className="studio-panel overflow-hidden rounded-2xl">
+          <div className="relative flex min-h-[320px] items-center justify-center bg-black md:min-h-[460px]">
             {!mediaUrl ? (
-              <div className="flex flex-col items-center gap-3 px-6 text-center text-surface-400">
+              <div className="flex flex-col items-center gap-3 px-6 text-center text-zinc-500">
                 <Film size={42} />
                 <p className="text-sm">暂无预览</p>
               </div>
             ) : mediaType === 'image' ? (
               <img src={mediaUrl} alt={assetViewModel?.name} className="max-h-[70vh] w-full object-contain" />
             ) : mediaType === 'audio' ? (
-              <div className="flex w-full max-w-xl flex-col items-center gap-6 rounded-[24px] border border-surface-800 bg-surface-900 px-8 py-10">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface-800 text-white">
+              <div className="studio-panel-soft flex w-full max-w-xl flex-col items-center gap-6 rounded-2xl px-8 py-10">
+                <div className="studio-brand-mark flex h-20 w-20 items-center justify-center rounded-full text-white">
                   <Waves size={32} />
                 </div>
-                <p className="text-sm text-surface-300">{assetViewModel?.name}</p>
+                <p className="text-sm text-zinc-300">{assetViewModel?.name}</p>
                 <audio
                   ref={mediaRef}
                   src={mediaUrl}
@@ -500,19 +500,19 @@ export default function ReviewPage() {
             ) : null}
           </div>
 
-          <div className="border-t border-surface-200 bg-surface-950 px-4 py-4 text-white dark:border-surface-800">
+          <div className="border-t border-white/5 bg-[#0b0b0d] px-4 py-4 text-white">
             {isVisualTimeline ? (
               <div>
-                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-surface-800 bg-surface-900/80 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="studio-panel-soft mb-4 flex flex-col gap-3 rounded-xl px-4 py-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-surface-500">时间点</p>
+                    <p className="studio-label">时间点</p>
                     <p className="mt-1 text-sm font-medium">
                       {timelineFocusThread
                         ? formatTimecode(timelineFocusThread.timecode || 0)
                         : formatTimecode(currentTime)}
                     </p>
                   </div>
-                  <div className="max-w-[520px] text-sm text-surface-300">
+                  <div className="max-w-[520px] text-sm text-zinc-300">
                     {timelineFocusThread ? timelineFocusThread.previewText : '点击时间轴添加批注'}
                   </div>
                 </div>
@@ -522,9 +522,9 @@ export default function ReviewPage() {
                   className="relative h-14 cursor-pointer"
                   onClick={handleTimelineClick}
                 >
-                  <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-surface-700">
+                  <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-zinc-800">
                     <div
-                      className="h-full rounded-full bg-brand-500"
+                      className="h-full rounded-full bg-violet-500 shadow-[0_0_16px_rgba(124,58,237,0.65)]"
                       style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
                     />
                   </div>
@@ -545,8 +545,8 @@ export default function ReviewPage() {
                       key={thread.id}
                       type="button"
                       className={clsx(
-                        'absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-[3px] border-surface-950 transition-transform',
-                        thread.resolved ? 'bg-surface-500' : 'bg-amber-400',
+                        'absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-[3px] border-[#0b0b0d] transition-transform',
+                        thread.resolved ? 'bg-zinc-500' : 'bg-amber-400',
                         activeThreadId === thread.id && 'scale-125 ring-2 ring-white/70'
                       )}
                       style={{ left: `calc(${duration ? (thread.timecode / duration) * 100 : 0}% - 8px)` }}
@@ -572,7 +572,7 @@ export default function ReviewPage() {
                   <Button size="sm" variant="secondary" onClick={togglePlay}>
                     {isPlaying ? <Pause size={14} /> : <Play size={14} />}
                   </Button>
-                  <div className="text-sm text-surface-300">
+                  <div className="text-sm text-zinc-300">
                     {formatDuration(currentTime)} / {formatDuration(duration)}
                   </div>
                   <select
@@ -584,7 +584,7 @@ export default function ReviewPage() {
                         mediaRef.current.playbackRate = nextRate;
                       }
                     }}
-                    className="rounded-lg bg-surface-900 px-2 py-1 text-sm text-surface-200"
+                    className="studio-input rounded-lg px-2 py-1 text-sm"
                   >
                     <option value="0.5">0.5x</option>
                     <option value="1">1x</option>
@@ -592,7 +592,7 @@ export default function ReviewPage() {
                     <option value="1.5">1.5x</option>
                     <option value="2">2x</option>
                   </select>
-                  <button type="button" className="rounded-lg p-2 text-surface-300 hover:bg-surface-900" onClick={toggleMute}>
+                  <button type="button" className="rounded-lg p-2 text-zinc-300 hover:bg-white/[0.06]" onClick={toggleMute}>
                     {muted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
                   </button>
                   <input
@@ -606,7 +606,7 @@ export default function ReviewPage() {
                   />
                   <button
                     type="button"
-                    className="rounded-lg p-2 text-surface-300 hover:bg-surface-900"
+                    className="rounded-lg p-2 text-zinc-300 hover:bg-white/[0.06]"
                     onClick={() => mediaRef.current?.requestFullscreen?.()}
                   >
                     <Maximize2 size={16} />
@@ -614,7 +614,7 @@ export default function ReviewPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-surface-800 bg-surface-900 px-4 py-3 text-sm text-surface-300">
+              <div className="studio-panel-soft rounded-xl px-4 py-3 text-sm text-zinc-300">
                 {mediaType === 'image' ? '图片素材没有时间轴。' : '当前素材没有可用时间轴。'}
               </div>
             )}
@@ -622,22 +622,22 @@ export default function ReviewPage() {
         </div>
       </section>
 
-      <aside className="rounded-[26px] border border-surface-200 bg-white shadow-sm dark:border-surface-800 dark:bg-surface-900">
-        <div className="border-b border-surface-200 px-5 py-5 dark:border-surface-800">
+      <aside className="studio-panel overflow-hidden rounded-2xl">
+        <div className="border-b border-white/5 px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-surface-500 dark:text-surface-400">批注</p>
-              <h3 className="mt-1 text-lg font-semibold">线程</h3>
+              <p className="studio-label">Comments</p>
+              <h3 className="mt-1 text-lg font-semibold text-zinc-50">线程</h3>
             </div>
             <Badge variant={unresolvedCount ? 'warning' : 'success'}>
               {unresolvedCount ? `${unresolvedCount} 待处理` : '已清空'}
             </Badge>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-surface-50 p-4 dark:bg-surface-950">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-surface-400">当前位置</p>
+          <div className="studio-panel-soft mt-4 rounded-xl p-3">
+            <p className="studio-label">当前位置</p>
             <p className="mt-2 text-sm font-medium">{formatTimecode(selectedTimecode || 0)}</p>
-            <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
+            <p className="mt-1 text-xs text-zinc-500">
               {activeThread ? '回复当前线程' : '创建新线程'}
             </p>
           </div>
@@ -668,13 +668,13 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        <div className="border-b border-surface-200 px-5 py-4 dark:border-surface-800">
+        <div className="border-b border-white/5 px-4 py-4">
           <div className="space-y-3">
             <Textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder={activeThread ? '回复线程' : `在 ${formatDuration(selectedTimecode || 0)} 添加批注`}
-              className="min-h-[96px]"
+              className="min-h-[96px] border-white/10 bg-zinc-950/60 text-zinc-100 placeholder:text-zinc-600"
             />
             <div className="flex justify-end">
               <Button
@@ -689,7 +689,7 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        <div className="overflow-y-visible md:max-h-[calc(100vh-18rem)] md:overflow-y-auto">
+        <div className="overflow-y-visible md:max-h-[calc(100vh-17rem)] md:overflow-y-auto">
           {threadsQuery.isLoading ? (
             <ThreadListSkeleton />
           ) : threads.length === 0 ? (
@@ -700,17 +700,17 @@ export default function ReviewPage() {
               description="从时间轴开始。"
             />
           ) : (
-            <div className="divide-y divide-surface-200 dark:divide-surface-800">
+            <div className="divide-y divide-white/5">
               {threads.map((thread) => (
                 <div
                   key={thread.id}
                   className={clsx(
-                    'border-l-2 px-5 py-4 transition-colors',
+                    'border-l-2 px-4 py-4 transition-colors',
                     activeThreadId === thread.id
-                      ? 'border-l-brand-500 bg-brand-50/70 dark:bg-brand-900/10'
+                      ? 'border-l-violet-500 bg-violet-500/10'
                       : thread.resolved
-                        ? 'border-l-surface-200 hover:bg-surface-50 dark:border-l-surface-800 dark:hover:bg-surface-950'
-                        : 'border-l-amber-400/80 hover:bg-surface-50 dark:hover:bg-surface-950'
+                        ? 'border-l-zinc-800 hover:bg-white/[0.03]'
+                        : 'border-l-amber-400/80 hover:bg-white/[0.03]'
                   )}
                 >
                   <button
@@ -725,13 +725,13 @@ export default function ReviewPage() {
                     }}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="font-mono text-xs text-surface-500 dark:text-surface-400">{formatTimecode(thread.timecode)}</p>
+                      <p className="font-mono text-xs text-zinc-500">{formatTimecode(thread.timecode)}</p>
                       <Badge variant={thread.resolved ? 'success' : 'warning'}>
                         {thread.resolved ? '已解决' : '待处理'}
                       </Badge>
                     </div>
-                    <p className="mt-2 text-sm font-medium leading-6">{thread.previewText}</p>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
+                    <p className="mt-2 text-sm font-medium leading-6 text-zinc-200">{thread.previewText}</p>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
                       <Avatar src={thread.author?.avatar} name={thread.author?.name} size="xs" />
                       <span>{thread.author?.name || '成员'}</span>
                       <span>·</span>
@@ -740,18 +740,18 @@ export default function ReviewPage() {
                   </button>
 
                   {activeThreadId === thread.id ? (
-                    <div className="mt-4 space-y-3 rounded-2xl border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-900">
+                    <div className="studio-panel-soft mt-4 space-y-3 rounded-xl p-3">
                       {thread.comments.map((comment) => (
                         <div key={comment.id} className="flex gap-3">
                           <Avatar src={comment.user?.avatar} name={comment.user?.name} size="sm" />
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-medium">{comment.user?.name || '成员'}</span>
-                              <span className="text-xs text-surface-400">
+                              <span className="text-sm font-semibold text-zinc-100">{comment.user?.name || '成员'}</span>
+                              <span className="text-xs text-zinc-500">
                                 {comment.createdAt ? new Date(comment.createdAt).toLocaleString('zh-CN') : ''}
                               </span>
                             </div>
-                            <p className="mt-1 text-sm leading-6 text-surface-600 dark:text-surface-300">{comment.body}</p>
+                            <p className="mt-1 text-sm leading-6 text-zinc-300">{comment.body}</p>
                           </div>
                         </div>
                       ))}
