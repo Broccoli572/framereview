@@ -168,7 +168,7 @@ function WorkspaceSkeleton() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-36 w-full rounded-2xl" />
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
+      <div className="workspace-video-grid">
         {Array.from({ length: 8 }).map((_, index) => (
           <Skeleton key={index} className="h-44 w-full rounded-2xl" />
         ))}
@@ -181,7 +181,7 @@ function VideoCard({ asset, aspectRatio, coverUrl, deleting, onAspectRatio, onDe
   const videoCoverUrl = !coverUrl ? getVideoFrameUrl(asset.previewUrl) : null;
 
   return (
-    <article className="studio-card group relative self-start overflow-hidden rounded-2xl">
+    <article className="studio-card group relative w-full self-start overflow-hidden rounded-2xl">
       <button type="button" className="block w-full text-left" onClick={() => onPreview(asset)}>
         <div className="studio-thumb relative overflow-hidden" style={{ aspectRatio }}>
           {coverUrl ? (
@@ -363,13 +363,13 @@ function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, o
   const mediaUrl = resolveMediaUrl(asset, detail);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4">
       <div
-        className="pointer-events-auto w-full max-w-6xl rounded-[28px] border border-surface-200 bg-white p-3 text-surface-950 shadow-[0_24px_70px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-zinc-950 dark:text-white"
+        className="pointer-events-auto max-h-[calc(100svh-1.5rem)] w-full max-w-[min(1120px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-2.5 text-surface-950 shadow-[0_18px_54px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-zinc-950 dark:text-white sm:max-h-[calc(100svh-2rem)] sm:max-w-[min(1120px,calc(100vw-2rem))] sm:p-3"
         onClick={(event) => event.stopPropagation()}
       >
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="max-h-[72vh] overflow-hidden rounded-2xl bg-black" style={{ aspectRatio }}>
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]">
+        <div className="max-h-[58svh] min-h-[180px] overflow-hidden rounded-xl bg-black sm:max-h-[68svh]" style={{ aspectRatio }}>
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="animate-spin" size={28} />
@@ -396,7 +396,7 @@ function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, o
           )}
         </div>
 
-        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-2xl bg-surface-50 p-4 dark:bg-white/[0.06]">
+        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-xl bg-surface-50 p-3 dark:bg-white/[0.06] sm:p-4">
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-3">
               <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
@@ -703,7 +703,7 @@ export default function WorkspacePage() {
   return (
     <div
       className={clsx(
-        'relative min-h-[calc(100vh-6.25rem)] space-y-4',
+        'relative min-h-[calc(100svh-5.5rem)] min-w-0 space-y-3 sm:space-y-4',
         dropActive && 'after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[28px] after:border-2 after:border-dashed after:border-violet-400 after:bg-violet-500/10'
       )}
       onDragEnter={(event) => {
@@ -716,9 +716,9 @@ export default function WorkspacePage() {
       }}
       onDrop={handleDrop}
     >
-      <section className="studio-panel overflow-hidden rounded-3xl p-4 sm:p-5">
+      <section className="studio-panel overflow-hidden rounded-2xl p-3 sm:p-4 lg:p-5">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <p className="studio-label">Workflow</p>
               <h2 className="mt-2 truncate text-2xl font-semibold">{workspaceQuery.data?.name || '工作区'}</h2>
@@ -727,7 +727,7 @@ export default function WorkspacePage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-medium text-surface-700 dark:bg-surface-800 dark:text-surface-200">
                 视频 {assetsQuery.data?.length || 0}
               </span>
@@ -740,9 +740,9 @@ export default function WorkspacePage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-surface-200/70 bg-surface-50/60 p-2 dark:border-surface-700 dark:bg-surface-900/50">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-full min-w-[220px] flex-1">
+          <div className="rounded-xl border border-surface-200/70 bg-surface-50/60 p-2 dark:border-surface-700 dark:bg-surface-900/50">
+            <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <div className="min-w-0">
                 <Input
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
@@ -761,10 +761,10 @@ export default function WorkspacePage() {
                   event.target.value = '';
                 }}
               />
-              <Button leftIcon={UploadCloud} onClick={() => fileInputRef.current?.click()} loading={uploadMutation.isPending}>
+              <Button className="w-full sm:w-auto" leftIcon={UploadCloud} onClick={() => fileInputRef.current?.click()} loading={uploadMutation.isPending}>
                 上传视频
               </Button>
-              <Button variant="ghost" leftIcon={Trash2} onClick={() => setShowTrash((current) => !current)}>
+              <Button className="w-full sm:w-auto" variant="ghost" leftIcon={Trash2} onClick={() => setShowTrash((current) => !current)}>
                 回收站{trashCount ? ` ${trashCount}` : ''}
               </Button>
             </div>
@@ -789,7 +789,7 @@ export default function WorkspacePage() {
 
       <section className="space-y-3">
         {assetsQuery.isLoading ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] gap-3">
+          <div className="workspace-video-grid">
             {Array.from({ length: 8 }).map((_, index) => (
               <Skeleton key={index} className="h-44 w-full rounded-2xl" />
             ))}
@@ -805,7 +805,7 @@ export default function WorkspacePage() {
             />
           </div>
         ) : (
-          <div className="grid auto-rows-auto grid-cols-[repeat(auto-fill,minmax(min(100%,150px),190px))] items-start gap-3">
+          <div className="workspace-video-grid">
             {assets.map((asset) => (
               <VideoCard
                 key={asset.id}

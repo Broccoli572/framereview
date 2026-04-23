@@ -144,7 +144,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="studio-shell flex min-h-screen">
+    <div className="studio-shell flex min-h-screen overflow-x-hidden">
       {mobileMenuOpen ? (
         <button
           type="button"
@@ -220,9 +220,9 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-hidden">
         <header className="studio-topbar sticky top-0 z-30 border-b">
-          <div className="flex h-full items-center gap-3 px-4">
+          <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-4">
             <button
               type="button"
               className="rounded-xl border border-surface-200 p-2 text-surface-600 lg:hidden dark:border-surface-800 dark:text-surface-300"
@@ -258,7 +258,7 @@ export default function AppLayout() {
               ) : null}
             </div>
 
-            <div className="hidden w-full max-w-sm lg:block">
+            <div className="hidden w-full max-w-[min(22rem,28vw)] lg:block">
               <SearchInput
                 placeholder="搜索"
                 onFocus={() => navigate('/search')}
@@ -324,7 +324,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
           <Outlet />
         </main>
       </div>
