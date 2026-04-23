@@ -395,13 +395,13 @@ export default function ReviewPage() {
           </div>
 
           {assetViewModel?.status === 'processing' ? (
-            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
               正在处理，页面会自动刷新。
             </div>
           ) : null}
 
           {assetViewModel?.status === 'failed' ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-200">
               <span>处理失败。</span>
               <Button size="sm" variant="secondary" leftIcon={RefreshCw} onClick={() => retryProcessingMutation.mutate()}>
                 重新处理
@@ -449,7 +449,7 @@ export default function ReviewPage() {
         </div>
 
         <div className="studio-panel overflow-hidden rounded-2xl">
-          <div className="relative flex min-h-[320px] items-center justify-center bg-black md:min-h-[460px]">
+          <div className="studio-media-surface relative flex min-h-[320px] items-center justify-center md:min-h-[460px]">
             {!mediaUrl ? (
               <div className="flex flex-col items-center gap-3 px-6 text-center text-zinc-500">
                 <Film size={42} />
@@ -500,7 +500,7 @@ export default function ReviewPage() {
             ) : null}
           </div>
 
-          <div className="border-t border-white/5 bg-[#0b0b0d] px-4 py-4 text-white">
+          <div className="studio-timeline-surface border-t px-4 py-4">
             {isVisualTimeline ? (
               <div>
                 <div className="studio-panel-soft mb-4 flex flex-col gap-3 rounded-xl px-4 py-3 md:flex-row md:items-center md:justify-between">
@@ -614,7 +614,7 @@ export default function ReviewPage() {
                 </div>
               </div>
             ) : (
-              <div className="studio-panel-soft rounded-xl px-4 py-3 text-sm text-zinc-300">
+              <div className="studio-panel-soft rounded-xl px-4 py-3 text-sm">
                 {mediaType === 'image' ? '图片素材没有时间轴。' : '当前素材没有可用时间轴。'}
               </div>
             )}
@@ -674,7 +674,7 @@ export default function ReviewPage() {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               placeholder={activeThread ? '回复线程' : `在 ${formatDuration(selectedTimecode || 0)} 添加批注`}
-              className="min-h-[96px] border-white/10 bg-zinc-950/60 text-zinc-100 placeholder:text-zinc-600"
+              className="min-h-[96px]"
             />
             <div className="flex justify-end">
               <Button

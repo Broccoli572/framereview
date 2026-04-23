@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 
+function resolveInitialDarkMode() {
+  if (typeof window === 'undefined') return false;
+
+  const storedTheme = localStorage.getItem('theme');
+  if (storedTheme) return storedTheme === 'dark';
+
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
 export const useThemeStore = create((set) => ({
-  darkMode:
-    typeof window !== 'undefined'
-      ? localStorage.getItem('theme') !== 'light'
-      : false,
+  darkMode: resolveInitialDarkMode(),
 
   toggleTheme() {
     set((s) => {
@@ -20,7 +26,7 @@ export const useThemeStore = create((set) => ({
   },
 
   init() {
-    const isDark = localStorage.getItem('theme') !== 'light';
+    const isDark = resolveInitialDarkMode();
     if (isDark) {
       document.documentElement.classList.add('dark');
     } else {

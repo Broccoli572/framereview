@@ -39,8 +39,8 @@ function FolderTreeNode({ folder, selectedFolderId, onSelect, depth = 0 }) {
         className={clsx(
           'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors',
           isActive
-            ? 'bg-violet-500/15 text-violet-200'
-            : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100'
+            ? 'bg-violet-500/15 text-violet-700 dark:text-violet-200'
+            : 'text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100'
         )}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => {
@@ -356,8 +356,8 @@ export default function ProjectPage() {
                 className={clsx(
                   'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors',
                   !selectedFolderId
-                    ? 'bg-violet-500/15 text-violet-200'
-                    : 'text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100'
+                    ? 'bg-violet-500/15 text-violet-700 dark:text-violet-200'
+                    : 'text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100'
                 )}
                 onClick={() => setSelectedFolderId(null)}
               >
@@ -471,14 +471,14 @@ export default function ProjectPage() {
               </select>
             </div>
 
-            <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
+            <div className="studio-control inline-flex rounded-xl p-1">
               <button
                 type="button"
                 className={clsx(
                   'rounded-lg p-2 transition-colors',
                   viewMode === 'grid'
                     ? 'bg-violet-600 text-white'
-                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100'
+                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-700 dark:hover:text-zinc-100'
                 )}
                 onClick={() => setViewMode('grid')}
                 aria-label="网格视图"
@@ -491,7 +491,7 @@ export default function ProjectPage() {
                   'rounded-lg p-2 transition-colors',
                   viewMode === 'list'
                     ? 'bg-violet-600 text-white'
-                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100'
+                    : 'text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-700 dark:hover:text-zinc-100'
                 )}
                 onClick={() => setViewMode('list')}
                 aria-label="列表视图"
@@ -510,8 +510,8 @@ export default function ProjectPage() {
                 className={clsx(
                   'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-colors',
                   statusFilter === chip.key
-                    ? 'bg-violet-500/20 text-violet-100 ring-1 ring-violet-400/30'
-                    : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-100'
+                    ? 'bg-violet-500/20 text-violet-700 ring-1 ring-violet-400/30 dark:text-violet-100'
+                    : 'bg-white/[0.04] text-zinc-500 hover:bg-white/[0.07] hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100'
                 )}
               >
                 <span>{chip.label}</span>

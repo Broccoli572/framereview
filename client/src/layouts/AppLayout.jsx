@@ -156,19 +156,19 @@ export default function AppLayout() {
 
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-surface-200 bg-white/95 px-4 py-4 backdrop-blur dark:border-surface-800 dark:bg-surface-950/95 lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r px-4 py-4 backdrop-blur lg:static lg:translate-x-0',
           'studio-sidebar lg:w-[216px] lg:px-2.5 lg:py-3',
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-2.5 py-2">
+        <div className="studio-control flex items-center justify-between rounded-xl px-2.5 py-2">
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <div className="studio-brand-mark flex h-8 w-8 items-center justify-center rounded-lg text-white">
               <Film size={18} />
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-tight">粿条</p>
-              <p className="truncate text-[10px] text-zinc-500">FrameReview</p>
+              <p className="studio-muted truncate text-[10px]">FrameReview</p>
             </div>
           </Link>
 
@@ -211,7 +211,7 @@ export default function AppLayout() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="studio-label">当前素材</p>
-                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-zinc-100">{normalizedAsset.name}</p>
+                  <p className="studio-title mt-1 line-clamp-2 text-xs font-semibold">{normalizedAsset.name}</p>
                 </div>
                 <Badge variant={normalizedAsset.statusVariant}>{normalizedAsset.statusLabel}</Badge>
               </div>
@@ -248,11 +248,11 @@ export default function AppLayout() {
                 ))}
               </div>
               <div className="mt-0.5 flex items-center gap-3">
-                <h1 className="truncate text-sm font-bold tracking-tight text-zinc-50">{pageContext.title || 'FrameReview'}</h1>
+                <h1 className="studio-title truncate text-sm font-bold tracking-tight">{pageContext.title || 'FrameReview'}</h1>
                 {loadingContext ? <Spinner size="sm" /> : null}
               </div>
               {pageContext.subtitle ? (
-                <p className="mt-0.5 hidden text-xs text-zinc-500 md:block">
+                <p className="studio-muted mt-0.5 hidden text-xs md:block">
                   {pageContext.subtitle}
                 </p>
               ) : null}
@@ -307,11 +307,11 @@ export default function AppLayout() {
             <Dropdown
               align="right"
               trigger={(
-                <div className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2 py-1.5">
+                <div className="studio-control flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5">
                   <Avatar src={user?.avatar} name={user?.name} size="sm" />
                   <div className="hidden min-w-0 text-left md:block">
-                    <p className="truncate text-xs font-semibold text-zinc-100">{user?.name || '当前用户'}</p>
-                    <p className="truncate text-[10px] text-zinc-500">{user?.email || '已登录'}</p>
+                    <p className="studio-title truncate text-xs font-semibold">{user?.name || '当前用户'}</p>
+                    <p className="studio-muted truncate text-[10px]">{user?.email || '已登录'}</p>
                   </div>
                 </div>
               )}
