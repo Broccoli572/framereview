@@ -371,39 +371,49 @@ function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, o
 
   const mediaUrl = resolveMediaUrl(asset, detail);
   const ratioValue = getAspectRatioValue(aspectRatio);
-  const isPortrait = ratioValue < 0.9;
-  const mediaFrameStyle = isPortrait
+  const isCompactPreview = ratioValue <= 1;
+  const mediaFrameStyle = isCompactPreview
     ? {
         aspectRatio,
-        width: `min(calc(min(68svh, 620px) * ${ratioValue}), 100%)`,
+        height: 'min(70svh, 640px)',
+        width: `clamp(180px, calc(min(70svh, 640px) * ${ratioValue}), min(620px, calc(100vw - 2rem)))`,
       }
     : { aspectRatio };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4">
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5">
       <div
         className={clsx(
-          'pointer-events-auto max-h-[calc(100svh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-surface-200 bg-white p-2.5 text-surface-950 shadow-[0_18px_54px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-zinc-950 dark:text-white sm:max-h-[calc(100svh-2rem)] sm:p-3',
-          isPortrait
-            ? 'sm:w-auto sm:max-w-[min(760px,calc(100vw-2rem))]'
-            : 'max-w-[min(1120px,calc(100vw-1.5rem))] sm:max-w-[min(1120px,calc(100vw-2rem))]'
+          'pointer-events-auto relative max-h-[calc(100svh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-surface-200/80 bg-white/95 p-2.5 text-surface-950 shadow-[0_18px_48px_rgba(15,23,42,0.18)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/95 dark:text-white sm:max-h-[calc(100svh-2.5rem)] sm:p-3',
+          isCompactPreview
+            ? 'sm:w-fit sm:max-w-[min(920px,calc(100vw-2.5rem))]'
+            : 'max-w-[min(1120px,calc(100vw-1.5rem))] sm:max-w-[min(1120px,calc(100vw-2.5rem))]'
         )}
         onClick={(event) => event.stopPropagation()}
       >
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-surface-500 shadow-sm ring-1 ring-black/5 transition hover:bg-surface-100 hover:text-surface-950 dark:bg-zinc-900/90 dark:text-zinc-300 dark:ring-white/10 dark:hover:bg-zinc-800 dark:hover:text-white"
+          onClick={onClose}
+          aria-label="关闭预览"
+        >
+          <X size={16} />
+        </button>
+
       <div
         className={clsx(
           'grid min-w-0 gap-3',
-          isPortrait
-            ? 'lg:grid-cols-[minmax(180px,auto)_minmax(220px,280px)] lg:justify-center'
+          isCompactPreview
+            ? 'lg:grid-cols-[minmax(180px,auto)_minmax(220px,260px)] lg:justify-center'
             : 'lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)]'
         )}
       >
         <div
           className={clsx(
             'overflow-hidden rounded-xl bg-black',
-            isPortrait
+            isCompactPreview
               ? 'mx-auto min-w-[180px] max-w-full'
-              : 'max-h-[58svh] min-h-[180px] w-full sm:max-h-[68svh]'
+              : 'max-h-[58svh] min-h-[180px] w-full sm:max-h-[70svh]'
           )}
           style={mediaFrameStyle}
         >
@@ -433,13 +443,10 @@ function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, o
           )}
         </div>
 
-        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-xl bg-surface-50 p-3 dark:bg-white/[0.06] sm:p-4">
+        <aside className="flex min-w-0 flex-col justify-between gap-4 rounded-xl bg-surface-50 p-3 pr-10 dark:bg-white/[0.06] sm:p-4 sm:pr-10">
           <div className="min-w-0">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
               <Badge variant={asset.statusVariant}>{asset.statusLabel}</Badge>
-              <button type="button" className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white" onClick={onClose}>
-                <X size={16} />
-              </button>
             </div>
             <h3 className="mt-3 line-clamp-2 text-base font-semibold">{asset.name}</h3>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-surface-500 dark:text-zinc-300">
@@ -458,7 +465,7 @@ function FloatingPreview({ asset, aspectRatio, detail, loading, onAspectRatio, o
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" className="flex-1" onClick={() => onOpenReview(asset)}>
               进入审阅
             </Button>
